@@ -1,0 +1,201 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "/root/.openclaw/workspace",
+      "model": {
+        "primary": "deepseek/deepseek-chat"
+      },
+      "models": {
+        "宝塔/qwen3.5-plus": {},
+        "deepseek/deepseek-chat": {}
+      },
+      "blockStreamingDefault": "off",
+      "compaction": {
+        "mode": "safeguard"
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "subagents": {
+          "allowAgents": [
+            "*"
+          ]
+        }
+      },
+      {
+        "id": "agent_917cede5",
+        "name": "旅行规划师",
+        "workspace": "/root/.openclaw/workspace-agent_917cede5",
+        "agentDir": "/root/.openclaw/agents/agent_917cede5/agent",
+        "identity": {
+          "name": "行程规划与旅行规划"
+        }
+      },
+      {
+        "id": "agent_31869885",
+        "name": "日程规划助手",
+        "workspace": "/root/.openclaw/workspace-agent_31869885",
+        "agentDir": "/root/.openclaw/agents/agent_31869885/agent",
+        "identity": {
+          "name": "个人日程优化师与日常规划助手"
+        }
+      }
+    ]
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "c7c1a0bc37cafd9c33e0b9c5211ac188256948f6970e563a"
+    },
+    "port": 18789,
+    "bind": "lan",
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "controlUi": {
+      "dangerouslyAllowHostHeaderOriginFallback": true,
+      "allowInsecureAuth": true,
+      "dangerouslyDisableDeviceAuth": true,
+      "allowedOrigins": [
+        "http://127.0.0.1:18789"
+      ]
+    }
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "tools": {
+    "profile": "full"
+  },
+  "wizard": {
+    "lastRunAt": "2026-04-20T13:10:23.445Z",
+    "lastRunVersion": "2026.4.15",
+    "lastRunCommand": "onboard",
+    "lastRunMode": "local"
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.4.15",
+    "lastTouchedAt": "2026-04-21T12:32:43.941Z"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "宝塔": {
+        "baseUrl": "https://www.bt.cn/plugin_api/chat/openai/v1",
+        "apiKey": "--",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "qwen3.5-plus",
+            "name": "qwen3.5-plus",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ],
+        "headers": {
+          "uid": "2592776",
+          "access-key": "tMFYXh0WqE5cbVZB2rrZLw9bMwt4DEyI",
+          "appid": "bt_app_001"
+        }
+      },
+      "deepseek": {
+        "baseUrl": "https://api.deepseek.com/v1",
+        "apiKey": "sk-b75a7d2d501c438a93f4b224dac9116b",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "deepseek-chat",
+            "name": "deepseek-chat",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "channels": {
+    "feishu": {
+      "appId": "cli_a96c888f4c3ddcbd",
+      "appSecret": "PRlFTVIEX21qXUWW3A84ufgOgJZmd0ic",
+      "enabled": true,
+      "dmPolicy": "open",
+      "allowFrom": [
+        "*"
+      ],
+      "connectionMode": "websocket"
+    },
+    "telegram": {
+      "botToken": "",
+      "enabled": false,
+      "dmPolicy": "open",
+      "allowFrom": [
+        "*"
+      ],
+      "groupPolicy": "allowlist",
+      "streaming": "partial"
+    },
+    "openclaw-weixin": {
+      "channelConfigUpdatedAt": "2026-04-20T22:20:47.926Z"
+    },
+    "qqbot": {
+      "botToken": "",
+      "enabled": true,
+      "dmPolicy": "open",
+      "allowFrom": [
+        "*"
+      ],
+      "groupPolicy": "allowlist",
+      "appId": "1903871577",
+      "clientSecret": "HkEiDiEkHoMuT3dEpR3gJxbGvbHyfN5o"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "deepseek": {
+        "enabled": true
+      },
+      "openclaw-weixin": {
+        "enabled": true
+      }
+    },
+    "installs": {
+      "openclaw-weixin": {
+        "source": "npm",
+        "spec": "@tencent-weixin/openclaw-weixin@latest",
+        "installPath": "/root/.openclaw/extensions/openclaw-weixin",
+        "version": "2.1.9",
+        "resolvedName": "@tencent-weixin/openclaw-weixin",
+        "resolvedVersion": "2.1.9",
+        "resolvedSpec": "@tencent-weixin/openclaw-weixin@2.1.9",
+        "integrity": "sha512-5dLvKCFebSMRNQ2l0Lqx78gyuL0Msdg1NVmcN6fuxtZiaQiOx4IkIl8+9WPN+e26jR8XM5qIfW2sgf7pe7M1ew==",
+        "shasum": "1020214d4c2f04ba085a810f5c0319e73af1d0e6",
+        "resolvedAt": "2026-04-20T22:17:06.507Z",
+        "installedAt": "2026-04-20T22:18:37.010Z"
+      }
+    }
+  }
+}

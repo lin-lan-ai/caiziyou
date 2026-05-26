@@ -1,0 +1,1 @@
+<?php readfile('/var/www/caiziyou/public/editor.php');

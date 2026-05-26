@@ -1,0 +1,10 @@
+[接口]
+PrivateKey = ENisT6DD6KuCmD5RHxCwdYfTXN2GCCDVxD04aRCZw1Q=
+Address = 10.0.0.3/24
+DNS = 8.8.8.8, 1.1.1.1
+
+[对端]
+PublicKey = 2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=
+Endpoint = 154.64.255.112:33401
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25

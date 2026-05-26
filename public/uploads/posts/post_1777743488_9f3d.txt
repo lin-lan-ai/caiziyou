@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>班级共享电子同学录</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft YaHei",sans-serif;}
+body{background:#f5f7fa;padding:20px;}
+.container{max-width:1200px;margin:0 auto;}
+header{text-align:center;padding:20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border-radius:12px;margin-bottom:30px;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+.form{background:white;padding:25px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-bottom:30px;}
+.form h2{margin-bottom:20px;color:#333;}
+.item{margin-bottom:15px;}
+.item label{display:block;margin-bottom:6px;font-weight:bold;color:#555;}
+.item input,.item textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;}
+button{background:#667eea;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:16px;transition:0.3s;}
+button:hover{background:#5568d3;}
+.card-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;}
+.card{background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);transition:0.3s;}
+.card:hover{transform:translateY(-5px);box-shadow:0 8px 16px rgba(0,0,0,0.12);}
+.card h3{color:#667eea;margin-bottom:10px;}
+.card p{color:#666;margin:6px 0;}
+.empty{text-align:center;color:#999;padding:40px;}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>🎓 班级共享电子同学录</h1>
+<p>全班共用 · 在线填写 · 实时查看</p>
+</header>
+
+<div class="form">
+<h2>✏️ 填写你的信息</h2>
+<div class="item"><label>姓名</label><input type="text" id="name" placeholder="你的名字"></div>
+<div class="item"><label>QQ</label><input type="text" id="qq" placeholder="QQ号"></div>
+<div class="item"><label>毕业留言</label><textarea id="msg" rows="3" placeholder="想对班级说的话"></textarea></div>
+<button onclick="submit()">提交信息</button>
+</div>
+
+<div class="card-list" id="list"></div>
+</div>
+
+<script>
+// === 后端接口（内嵌在HTML里，单文件即可运行） ===
+const handler = async (req, res) => {
+  // 全局存储（所有访问者共享）
+  if (!globalThis.classmates) globalThis.classmates = [];
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const path = url.pathname;
+
+  // 获取所有同学
+  if (req.method === "GET" && path === "/list") {
+    return res.end(JSON.stringify(globalThis.classmates));
+  }
+
+  // 添加同学
+  if (req.method === "POST" && path === "/add") {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const data = JSON.parse(body);
+    globalThis.classmates.push(data);
+    res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
+  res.writeHead(404).end("Not Found");
+};
+
+// === 前端逻辑 ===
+async function submit(){
+  const name = document.getElementById("name").value.trim();
+  const qq = document.getElementById("qq").value.trim();
+  const msg = document.getElementById("msg").value.trim();
+  if(!name) return alert("请填写姓名！");
+
+  await fetch("/add",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name,qq,msg})
+  });
+  alert("提交成功！");
+  getList();
+  document.getElementById("name").value = "";
+  document.getElementById("qq").value = "";
+  document.getElementById("msg").value = "";
+}
+
+async function getList(){
+  const res = await fetch("/list");
+  const data = await res.json();
+  const list = document.getElementById("list");
+  if(data.length===0){
+    list.innerHTML = '<div class="empty">还没有人填写，快来第一个吧！</div>';
+    return;
+  }
+  list.innerHTML = "";
+  data.forEach(item=>{
+    list.innerHTML += `
+      <div class="card">
+        <h3>${item.name}</h3>
+        <p>QQ：${item.qq||"未填写"}</p>
+        <p>留言：${item.msg||"无"}</p>
+      </div>
+    `;
+  });
+}
+
+window.onload = getList;
+
+// === Vercel 入口导出 ===
+if (typeof module !== "undefined") module.exports = handler;
+</script>
+</body>
+</html>

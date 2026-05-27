@@ -82,6 +82,9 @@ def compress_image(image_data, max_size=1920, quality=85, target_format=None):
             new_size = (int(img.width * ratio), int(img.height * ratio))
             img = img.resize(new_size, Image.LANCZOS)
 
+        # Strip all metadata (EXIF, ICC, etc.)
+        img.info.clear()
+
         # Save compressed
         buf = io.BytesIO()
         save_kwargs = {'format': target_format}

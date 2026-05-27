@@ -1011,6 +1011,176 @@ function startHeartbeat() {
   window._heartbeatInterval = setInterval(beat, 60000); // Every 60 seconds
 }
 
+// ===== Search =====
+function initSearch() {
+  var searchIcon = byId('topbarSearch');
+  if (!searchIcon) return;
+
+  searchIcon.onclick = function() {
+    openSearch();
+  };
+
+  // Global keyboard shortcut: Ctrl+K or Cmd+K
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      openSearch();
+    }
+  });
+}
+
+function openSearch() {
+  // Create search overlay if it doesn't exist
+  var overlay = byId('searchOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'searchOverlay';
+    overlay.className = 'search-overlay';
+    overlay.innerHTML =
+      '<div class="search-modal" onclick="event.stopPropagation()">' +
+      '  <div class="search-input-wrap">' +
+      '    <i class="fas fa-search"></i>' +
+      '    <input type="text" id="searchInput" placeholder="搜索帖子、用户、团..." autofocus>' +
+      '    <button class="search-close" id="searchCloseBtn"><i class="fas fa-times"></i></button>' +
+      '  </div>' +
+      '  <div class="search-results" id="searchResults">' +
+      '    <div class="search-empty"><i class="fas fa-search" style="font-size:24px;margin-bottom:8px;color:var(--accent-dim);display:block"></i>输入关键词开始搜索</div>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    // Close handlers
+    overlay.onclick = function() { overlay.classList.remove('active'); };
+    byId('searchCloseBtn').onclick = function() { overlay.classList.remove('active'); };
+
+    // Debounced search on input
+    var searchInput = byId('searchInput');
+    var _stimer;
+    searchInput.oninput = function() {
+      clearTimeout(_stimer);
+      var q = this.value.trim();
+      if (q.length < 2) {
+        byId('searchResults').innerHTML = '<div class="search-empty"><i class="fas fa-search" style="font-size:24px;margin-bottom:8px;color:var(--accent-dim);display:block"></i>输入至少2个字符</div>';
+        return;
+      }
+      _stimer = setTimeout(function() { doSearch(q); }, 300);
+    };
+
+    // Enter to search immediately
+    searchInput.onkeydown = function(e) {
+      if (e.key === 'Enter') {
+        clearTimeout(_stimer);
+        var q = this.value.trim();
+        if (q.length >= 2) doSearch(q);
+      }
+      if (e.key === 'Escape') {
+        overlay.classList.remove('active');
+      }
+    };
+
+    // Focus input after opening
+    setTimeout(function() { searchInput.focus(); }, 100);
+  }
+
+  overlay.classList.add('active');
+  var input = byId('searchInput');
+  if (input) { input.value = ''; input.focus(); }
+  byId('searchResults').innerHTML = '<div class="search-empty"><i class="fas fa-search" style="font-size:24px;margin-bottom:8px;color:var(--accent-dim);display:block"></i>输入关键词开始搜索</div>';
+}
+
+function doSearch(q) {
+  var results = byId('searchResults');
+  if (!results) return;
+  results.innerHTML = '<div class="search-loading"><i class="fas fa-spinner fa-spin"></i> 搜索中...</div>';
+
+  fetch('/api/search?q=' + encodeURIComponent(q) + '&type=all&limit=5')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) {
+        results.innerHTML = '<div class="search-empty">' + esc(d.error || '搜索失败') + '</div>';
+        return;
+      }
+
+      var html = '';
+      var res = d.results || {};
+
+      // Posts
+      if (res.posts && res.posts.items && res.posts.items.length) {
+        html += '<div class="search-section-title"><i class="fas fa-file-alt"></i> 帖子 (' + res.posts.total + ')</div>';
+        res.posts.items.forEach(function(p) {
+          html += '<div class="search-result-item" data-url="/post.php?id=' + p.id + '">' +
+            '<div class="search-result-icon"><i class="fas fa-file-alt"></i></div>' +
+            '<div class="search-result-info">' +
+            '<div class="search-result-title">' + esc(p.title) + '</div>' +
+            '<div class="search-result-desc">' + esc(p.community_name || '') + ' · ' + esc(p.created_at || '') + '</div>' +
+            '</div></div>';
+        });
+      }
+
+      // Users
+      if (res.users && res.users.items && res.users.items.length) {
+        html += '<div class="search-section-title"><i class="fas fa-users"></i> 用户 (' + res.users.total + ')</div>';
+        res.users.items.forEach(function(u) {
+          html += '<div class="search-result-item" data-uid="' + u.id + '">' +
+            '<div class="search-result-icon" style="overflow:hidden">' +
+            (u.avatar_url && u.avatar_url !== '/assets/images/default-avatar.png'
+              ? '<img src="' + esc(u.avatar_url) + '" style="width:100%;height:100%;object-fit:cover">'
+              : '<i class="fas fa-user"></i>') +
+            '</div>' +
+            '<div class="search-result-info">' +
+            '<div class="search-result-title">' + esc(u.nickname || u.username) + '</div>' +
+            '<div class="search-result-desc">@' + esc(u.username) + ' · ' + esc(u.unique_id || '') + '</div>' +
+            '</div></div>';
+        });
+      }
+
+      // Communities
+      if (res.communities && res.communities.items && res.communities.items.length) {
+        html += '<div class="search-section-title"><i class="fas fa-layer-group"></i> 团 (' + res.communities.total + ')</div>';
+        res.communities.items.forEach(function(c) {
+          html += '<div class="search-result-item" data-cid="' + c.id + '">' +
+            '<div class="search-result-icon"><i class="fas fa-users"></i></div>' +
+            '<div class="search-result-info">' +
+            '<div class="search-result-title">' + esc(c.name) + '</div>' +
+            '<div class="search-result-desc">' + esc(c.category || '其他') + ' · ' + (c.member_count || 0) + ' 成员</div>' +
+            '</div></div>';
+        });
+      }
+
+      if (!html) {
+        html = '<div class="search-empty"><i class="fas fa-search-minus" style="font-size:24px;margin-bottom:8px;color:var(--accent-dim);display:block"></i>未找到 "' + esc(q) + '" 的相关结果</div>';
+      }
+
+      results.innerHTML = html;
+
+      // Bind clicks
+      results.querySelectorAll('[data-url]').forEach(function(item) {
+        item.onclick = function() {
+          var url = this.getAttribute('data-url');
+          if (url) window.open(url, '_blank');
+          byId('searchOverlay').classList.remove('active');
+        };
+      });
+      results.querySelectorAll('[data-uid]').forEach(function(item) {
+        item.onclick = function() {
+          var uid = parseInt(this.getAttribute('data-uid'));
+          if (uid) showProfile(uid);
+          byId('searchOverlay').classList.remove('active');
+        };
+      });
+      results.querySelectorAll('[data-cid]').forEach(function(item) {
+        item.onclick = function() {
+          var cid = this.getAttribute('data-cid');
+          if (cid) window.open('/community/manage.php?id=' + cid, '_blank');
+          byId('searchOverlay').classList.remove('active');
+        };
+      });
+    })
+    .catch(function() {
+      results.innerHTML = '<div class="search-empty">搜索请求失败</div>';
+    });
+}
+
 // 初始化
 initTopbar();
 
@@ -1021,6 +1191,9 @@ bindEvents();
 
 // Start heartbeat for online status
 startHeartbeat();
+
+// Initialize search
+initSearch();
 
 // 默认显示发现页
 // showPanel('discover'); -- 默认留在欢迎页

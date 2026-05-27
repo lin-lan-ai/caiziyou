@@ -187,7 +187,7 @@ function renderService(){
     '<div class="svc-info"><span class="svc-label">SS端口</span><code>44380</code> <span class="svc-label">WG端口</span><code>51820</code></div>'+
     '<div class="svc-info"><span class="svc-label">SS密码</span><code>juniusSS2026!</code></div>'+
     '<div class="svc-info"><span class="svc-label">加密</span><code>aes-256-gcm</code></div>'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><a href="/downloads/singbox-config.json" class="btn btn-sm" target="_blank">Sing-box配置</a><a href="/sub/" class="btn btn-sm" target="_blank">教程</a></div></div>'+
+    '<div style="margin-top:8px;font-size:11px;color:var(--text-dim)"><i class="fas fa-shield-alt"></i> 配置信息已移至安全区域，联系管理员获取</div></div>'+
     '<div class="tool-card"><h4 class="tool-card-title"><i class="fas fa-hashtag"></i> JSON</h4><textarea class="tool-ta" id="jsonInput" rows="3" placeholder="输入JSON..."></textarea><div class="tool-buttons"><button class="btn btn-sm" id="formatJsonBtn">格式化</button><button class="btn btn-sm" id="minifyJsonBtn">压缩</button><button class="btn btn-sm" id="validateJsonBtn">验证</button></div><div class="tool-output" id="jsonOutput"></div></div>'+
     '<div class="tool-card"><h4 class="tool-card-title"><i class="fas fa-lock"></i> Base64</h4><textarea class="tool-ta" id="cryptoInput" rows="3" placeholder="输入文本..."></textarea><div class="tool-buttons"><button class="btn btn-sm" id="encryptBtn">编码</button><button class="btn btn-sm" id="decryptBtn">解码</button></div><div class="tool-output" id="cryptoOutput"></div></div>'+
     '<div class="tool-card"><h4 class="tool-card-title"><i class="fas fa-ruler"></i> 单位</h4><input class="tool-inp" id="unitValue" placeholder="数值"><div class="form-row" style="margin:4px 0"><select class="tool-sel" id="unitType"><option value="length">长度</option><option value="temp">温度</option></select><select class="tool-sel" id="unitFrom"><option value="m">米</option><option value="cm">厘米</option></select><select class="tool-sel" id="unitTo"><option value="cm">厘米</option><option value="m">米</option></select></div><button class="btn btn-sm" id="convertUnitBtn">换算</button><div class="tool-output" id="unitOutput"></div></div>'+
@@ -347,6 +347,7 @@ function isWide(){return window.innerWidth>=768}
 function initChat(){
   // 重置会话状态
   if(CHAT_POLL){clearInterval(CHAT_POLL);CHAT_POLL=null}
+  if(window._chatEventSource){window._chatEventSource.close();window._chatEventSource=null}
   CURRENT_CHAT_ID=null;
   // 初始布局：窄屏只显示好友列表，宽屏双栏
   var cv=byId('chatConvCol'),ia=byId('chatInputArea');
@@ -399,6 +400,7 @@ function onChatResize(){
 function backFromChat(){
   // 清除会话，回到好友列表初始状态
   if(CHAT_POLL){clearInterval(CHAT_POLL);CHAT_POLL=null}
+  if(window._chatEventSource){window._chatEventSource.close();window._chatEventSource=null}
   CURRENT_CHAT_ID=null;
   var cv=byId('chatConvCol'),bb=byId('chatBackBtn'),ia=byId('chatInputArea'),ms=byId('chatMessages'),ti=byId('chatConvTitle'),cl=byId('chatListCol');
   if(cv){cv.classList.remove('active');cv.style.display=isWide()?'flex':'none'}
@@ -448,11 +450,18 @@ function loadFriendList(searchTerm){
       var q=searchTerm.trim().toLowerCase();
       list=list.filter(function(u){return(u.nickname||'').toLowerCase().includes(q)||u.username.toLowerCase().includes(q)});
     }
-    // 批量获取未读数
+    // 批量获取未读数和在线状态
     var friendIds=list.map(function(u){return u.user_id});
-    fetch('/api/chat/unread-counts?user_id='+USER_ID+'&friend_ids='+friendIds.join(',')).then(function(r){return r.json()}).then(function(cd){
+    Promise.all([
+      fetch('/api/chat/unread-counts?user_id='+USER_ID+'&friend_ids='+friendIds.join(',')).then(function(r){return r.json()}),
+      fetch('/api/friends/online-status?user_id='+USER_ID+'&friend_ids='+friendIds.join(',')).then(function(r){return r.json()})
+    ]).then(function(results){
+      var cd=results[0],od=results[1];
       if(cd.success&&cd.counts){
         list.forEach(function(u){u.unread=cd.counts[u.user_id]||0});
+      }
+      if(od.success&&od.statuses){
+        list.forEach(function(u){u.is_online=od.statuses[u.user_id]||false});
       }
       renderFriendList(el,list);
     }).catch(function(){renderFriendList(el,list)});
@@ -545,6 +554,7 @@ function loadRequests(){
 }
 function openChat(uid,name){
   if(CHAT_POLL){clearInterval(CHAT_POLL);CHAT_POLL=null}
+  if(window._chatEventSource){window._chatEventSource.close();window._chatEventSource=null}
   CURRENT_CHAT_ID=null;
   var ti=byId('chatConvTitle'),ia=byId('chatInputArea'),ms=byId('chatMessages'),inp=byId('chatInput');
   if(ti)ti.textContent='与 '+name+' 聊天中';
@@ -557,7 +567,7 @@ function openChat(uid,name){
     if(!d.success){if(ms)ms.innerHTML='<div class="chat-empty">创建会话失败</div>';return}
     CURRENT_CHAT_ID=d.chat_id;
     loadMessages();
-    CHAT_POLL=setInterval(loadMessages,3000);
+    tryStartSSE(CURRENT_CHAT_ID);
   }).catch(function(){if(ms)ms.innerHTML='<div class="chat-empty">请求失败</div>'});
 }
 function loadMessages(){
@@ -567,7 +577,7 @@ function loadMessages(){
     var el=byId('chatMessages');if(!el)return;
     el.innerHTML=d.messages.map(function(m){
       var isMe=parseInt(m.sender_id)===USER_ID;
-      return'<div class="chat-msg '+(isMe?'me':'other')+'"><div class="bubble">'+esc(m.content)+'</div><div class="time">'+esc(m.created_at||'')+'</div></div>';
+      return'<div class="chat-msg '+(isMe?'me':'other')+'" data-msgid="'+m.id+'"><div class="bubble">'+esc(m.content)+'</div><div class="time">'+esc(m.created_at||'')+'</div></div>';
     }).join('');
     el.scrollTop=el.scrollHeight;
   }).catch(function(){});
@@ -579,6 +589,39 @@ function sendMessage(){
   fetch('/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CURRENT_CHAT_ID,sender_id:USER_ID,content:content})}).then(function(r){return r.json()}).then(function(d){
     if(d.success){loadMessages()}else toast('发送失败');
   }).catch(function(){toast('发送失败')});
+}
+function tryStartSSE(chatId){
+  if(window._chatEventSource){window._chatEventSource.close();window._chatEventSource=null}
+  try{
+    var es=new EventSource('/api/chat/stream?chat_id='+chatId+'&user_id='+USER_ID);
+    window._chatEventSource=es;
+    es.onmessage=function(e){
+      try{
+        var msg=JSON.parse(e.data);
+        appendMessage(msg);
+      }catch(err){}
+    };
+    es.onerror=function(){
+      es.close();window._chatEventSource=null;
+      if(CURRENT_CHAT_ID&&CHAT_POLL===null){CHAT_POLL=setInterval(loadMessages,3000)}
+    };
+    es.onopen=function(){
+      if(CHAT_POLL){clearInterval(CHAT_POLL);CHAT_POLL=null}
+    };
+  }catch(e){
+    if(CURRENT_CHAT_ID&&CHAT_POLL===null){CHAT_POLL=setInterval(loadMessages,3000)}
+  }
+}
+function appendMessage(msg){
+  var el=byId('chatMessages');if(!el)return;
+  if(el.querySelector('[data-msgid="'+msg.id+'"]'))return;
+  var isMe=parseInt(msg.sender_id)===USER_ID;
+  var div=document.createElement('div');
+  div.className='chat-msg '+(isMe?'me':'other');
+  div.setAttribute('data-msgid',msg.id);
+  div.innerHTML='<div class="bubble">'+esc(msg.content)+'</div><div class="time">'+esc(msg.created_at||'')+'</div>';
+  el.appendChild(div);
+  el.scrollTop=el.scrollHeight;
 }
 /* ===== 启动时绑定事件 ===== */
 function bindEvents(){
@@ -635,12 +678,12 @@ function renderAdminContent(){
   var el=byId('adminContent');if(!el||!ADMIN_TOKEN)return;
   el.innerHTML='<div class="placeholder-box"><i class="fas fa-spinner fa-spin"></i><p>加载中...</p></div>';
   // 统计数据
-  fetch('/api/admin/pending-users?token='+ADMIN_TOKEN).then(function(r){return r.json()}).then(function(d){
+  fetch('/api/admin/pending-users', {headers: {'Authorization': 'Bearer '+ADMIN_TOKEN}}).then(function(r){return r.json()}).then(function(d){
     var pending=d&&d.users?d.users.length:0;
-    fetch('/api/admin/users?token='+ADMIN_TOKEN).then(function(r2){return r2.json()}).then(function(d2){
+    fetch('/api/admin/users', {headers: {'Authorization': 'Bearer '+ADMIN_TOKEN}}).then(function(r2){return r2.json()}).then(function(d2){
       var total=d2&&d2.users?d2.users.length:0;
       el.innerHTML=
-        '<div class="admin-stat-grid"><div class="admin-stat-card" data-asec="users" style="cursor:pointer"><div class="num">'+total+'</div><div class="label">总用户</div></div><div class="admin-stat-card" data-asec="pending" style="cursor:pointer"><div class="num">'+pending+'</div><div class="label">待审核</div></div><div class="admin-stat-card" data-asec="communities" style="cursor:pointer"><div class="num" id="pendingCommCount">?</div><div class="label">审核团</div></div><div class="admin-stat-card" data-asec="allcommunities" style="cursor:pointer"><div class="num" id="totalCommCount">?</div><div class="label">总团数</div></div></div>'+
+        '<div class="admin-stat-grid"><div class="admin-stat-card" data-asec="users" style="cursor:pointer"><div class="num">'+total+'</div><div class="label">总用户</div></div><div class="admin-stat-card" data-asec="pending" style="cursor:pointer"><div class="num">'+pending+'</div><div class="label">待审核</div></div><div class="admin-stat-card" data-asec="communities" style="cursor:pointer"><div class="num" id="pendingCommCount">?</div><div class="label">审核团</div></div><div class="admin-stat-card" data-asec="allcommunities" style="cursor:pointer"><div class="num" id="totalCommCount">?</div><div class="label">总团数</div></div><div class="admin-stat-card" data-asec="resets" style="cursor:pointer"><div class="num" id="pendingResetCount">0</div><div class="label">密码重置</div></div></div>'+
         '<div id="adminSectionContent"></div>';
       bindAdminTabs();
       loadPendingUsers();
@@ -654,17 +697,30 @@ function bindAdminTabs(){
       if(sec==='pending')loadPendingUsers();
       else if(sec==='communities')loadPendingCommunities();
       else if(sec==='allcommunities')loadAllCommunities();
+      else if(sec==='resets')loadPasswordResets();
       else loadUserList();
     };
   });
   loadPendingUsers();
   fetch('/api/community/pending-approvals?user_id='+USER_ID).then(function(r){return r.json()}).then(function(d){if(d.success&&d.communities){var el=byId('pendingCommCount');if(el)el.textContent=d.communities.length}}).catch(function(){});
   fetch('/api/community/admin-all?user_id='+USER_ID).then(function(r){return r.json()}).then(function(d){if(d.success){var el=byId('totalCommCount');if(el)el.textContent=d.total}}).catch(function(){});
+  // Load pending password reset count
+  if (ADMIN_TOKEN) {
+    fetch('/api/admin/password-resets', {headers: {'Authorization': 'Bearer ' + ADMIN_TOKEN}})
+      .then(function(r){return r.json()})
+      .then(function(d){
+        if (d.success && d.resets) {
+          var cnt = d.resets.filter(function(r) { return r.status === 'pending'; }).length;
+          var el = byId('pendingResetCount');
+          if (el) el.textContent = cnt;
+        }
+      }).catch(function(){});
+  }
 }
 function loadPendingUsers(){
   var el=byId('adminSectionContent');if(!el||!ADMIN_TOKEN)return;
   el.innerHTML='<div class="placeholder-box"><i class="fas fa-spinner fa-spin"></i><p>加载中...</p></div>';
-  fetch('/api/admin/pending-users?token='+ADMIN_TOKEN).then(function(r){return r.json()}).then(function(d){
+  fetch('/api/admin/pending-users', {headers: {'Authorization': 'Bearer '+ADMIN_TOKEN}}).then(function(r){return r.json()}).then(function(d){
     if(!d.success){el.innerHTML='<div class="placeholder-box"><p>加载失败</p></div>';return}
     if(!d.users||!d.users.length){el.innerHTML='<div class="placeholder-box"><i class="fas fa-check-circle" style="color:var(--accent)"></i><p>暂无待审核用户</p></div>';return}
     el.innerHTML=d.users.map(function(u){
@@ -734,15 +790,237 @@ function loadAllCommunities(){
   }).catch(function(){el.innerHTML='<div class="placeholder-box"><p>加载失败</p></div>'});
 }
 
+function loadPasswordResets() {
+  var el = byId('adminSectionContent');
+  if (!el || !ADMIN_TOKEN) return;
+  el.innerHTML = '<div class="placeholder-box"><i class="fas fa-spinner fa-spin"></i><p>加载中...</p></div>';
+
+  fetch('/api/admin/password-resets', {headers: {'Authorization': 'Bearer ' + ADMIN_TOKEN}})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success || !d.resets || !d.resets.length) {
+        el.innerHTML = '<div class="placeholder-box"><i class="fas fa-check-circle" style="color:var(--accent)"></i><p>暂无重置请求</p></div>';
+        return;
+      }
+      el.innerHTML = '<div style="margin-bottom:10px;font-size:12px;color:var(--text-dim)"><i class="fas fa-key"></i> 密码重置请求</div>' +
+        d.resets.map(function(r) {
+          var statusMap = {'pending': '<span style="color:orange">待审核</span>', 'approved': '<span style="color:var(--accent)">已批准</span>', 'used': '<span style="color:var(--text-dim)">已使用</span>', 'expired': '<span style="color:var(--danger)">已过期</span>'};
+          var actions = '';
+          if (r.status === 'pending') {
+            actions = '<button class="btn btn-sm btn-accent" data-aprv-r="'+r.id+'">批准</button><button class="btn btn-sm btn-danger" data-rej-r="'+r.id+'" style="margin-left:4px">拒绝</button>';
+          }
+          return '<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><div style="color:var(--text-bright);font-weight:600">'+esc(r.username)+'</div><div style="color:var(--text-dim);font-size:12px">请求时间: '+(r.requested_at||'')+' · '+(statusMap[r.status]||r.status)+'</div></div><div>'+actions+'</div></div>';
+        }).join('');
+
+      el.querySelectorAll('[data-aprv-r]').forEach(function(b) {
+        b.onclick = function() {
+          fetch('/api/admin/approve-reset', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ADMIN_TOKEN},body:JSON.stringify({reset_id:parseInt(this.getAttribute('data-aprv-r')),action:'approve'})})
+            .then(function(r){return r.json()}).then(function(d){if(d.success){toast('已批准');loadPasswordResets()}else toast(d.error||'操作失败')}).catch(function(){});
+        };
+      });
+      el.querySelectorAll('[data-rej-r]').forEach(function(b) {
+        b.onclick = function() {
+          fetch('/api/admin/approve-reset', {method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+ADMIN_TOKEN},body:JSON.stringify({reset_id:parseInt(this.getAttribute('data-rej-r')),action:'reject'})})
+            .then(function(r){return r.json()}).then(function(d){if(d.success){toast('已拒绝');loadPasswordResets()}else toast(d.error||'操作失败')}).catch(function(){});
+        };
+      });
+    }).catch(function() {el.innerHTML = '<div class="placeholder-box"><p>加载失败</p></div>';});
+}
+
 /* 全局函数列表以供 manage.php 等页面引用 */
 window.UID=USER_ID;
 window.CID=0;
 
+// ===== Notification Center =====
+var NOTIF_POLL = null;
+
+function initNotifications() {
+  var bell = byId('notifBell');
+  if (!bell) return;
+
+  // Toggle dropdown
+  bell.onclick = function(e) {
+    e.stopPropagation();
+    var dd = byId('notifDropdown');
+    if (dd) dd.classList.toggle('active');
+    if (dd && dd.classList.contains('active')) {
+      loadNotifications();
+    }
+  };
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    var dd = byId('notifDropdown');
+    var b = byId('notifBell');
+    if (dd && b && !b.contains(e.target)) {
+      dd.classList.remove('active');
+    }
+  });
+
+  // Mark all as read
+  var markBtn = byId('notifMarkAllRead');
+  if (markBtn) {
+    markBtn.onclick = function(e) {
+      e.stopPropagation();
+      markAllNotificationsRead();
+    };
+  }
+
+  // View more
+  var more = byId('notifMore');
+  if (more) {
+    more.onclick = function(e) {
+      e.stopPropagation();
+      toast('通知列表已展开');
+    };
+  }
+
+  // Start polling for unread count
+  loadNotifCount();
+  if (NOTIF_POLL) clearInterval(NOTIF_POLL);
+  NOTIF_POLL = setInterval(loadNotifCount, 15000);
+}
+
+function loadNotifCount() {
+  fetch('/api/user/notifications/count?user_id=' + USER_ID)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) return;
+      var total = (d.unread_messages || 0) + (d.pending_requests || 0);
+      // Also get unread notifications count
+      fetch('/api/user/notifications/list?user_id=' + USER_ID + '&limit=1')
+        .then(function(r2) { return r2.json(); })
+        .then(function(d2) {
+          if (d2.success) {
+            total = d2.unread || 0;
+          }
+          updateNotifBadge(total);
+        })
+        .catch(function() {
+          updateNotifBadge(total);
+        });
+    })
+    .catch(function() {});
+}
+
+function updateNotifBadge(count) {
+  var badge = byId('notifBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count > 99 ? '99+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function loadNotifications() {
+  var list = byId('notifList');
+  if (!list) return;
+  list.innerHTML = '<div class="notif-loading"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>';
+
+  fetch('/api/user/notifications/list?user_id=' + USER_ID + '&limit=20')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success || !d.notifications || !d.notifications.length) {
+        list.innerHTML = '<div class="notif-empty"><i class="fas fa-bell-slash"></i><div>暂无通知</div></div>';
+        return;
+      }
+
+      list.innerHTML = d.notifications.map(function(n) {
+        var iconHtml = getNotifIcon(n.type);
+        var time = n.created_at || '';
+        var unreadCls = n.is_read ? '' : ' unread';
+        return '<div class="notif-item' + unreadCls + '" data-nid="' + n.id + '">' +
+          '<div class="notif-item-icon" style="background:' + iconHtml.bg + ';color:' + iconHtml.color + '">' +
+          '<i class="fas ' + iconHtml.icon + '"></i></div>' +
+          '<div class="notif-item-content">' +
+          '<div class="notif-item-title">' + esc(n.title || '') + '</div>' +
+          '<div class="notif-item-desc">' + esc(n.content || '') + '</div>' +
+          '<div class="notif-item-time">' + esc(time) + '</div>' +
+          '</div></div>';
+      }).join('');
+
+      // Click to mark as read
+      list.querySelectorAll('.notif-item.unread').forEach(function(item) {
+        item.onclick = function() {
+          var nid = this.getAttribute('data-nid');
+          fetch('/api/user/notifications/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: USER_ID, notification_id: parseInt(nid) })
+          }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.success) {
+              item.classList.remove('unread');
+              loadNotifCount();
+            }
+          }).catch(function() {});
+        };
+      });
+    })
+    .catch(function() {
+      list.innerHTML = '<div class="notif-empty"><i class="fas fa-exclamation-triangle"></i><div>加载失败</div></div>';
+    });
+}
+
+function getNotifIcon(type) {
+  var icons = {
+    'friend_request': { icon: 'fa-user-plus', bg: 'rgba(0,122,255,0.12)', color: '#007aff' },
+    'friend_accepted': { icon: 'fa-user-check', bg: 'rgba(52,199,89,0.12)', color: '#34c759' },
+    'friend_rejected': { icon: 'fa-user-times', bg: 'rgba(255,59,48,0.12)', color: '#ff3b30' },
+    'community_post': { icon: 'fa-file-alt', bg: 'rgba(90,200,250,0.12)', color: '#5ac8fa' },
+    'community_approved': { icon: 'fa-check-circle', bg: 'rgba(52,199,89,0.12)', color: '#34c759' },
+    'community_rejected': { icon: 'fa-times-circle', bg: 'rgba(255,59,48,0.12)', color: '#ff3b30' },
+    'community_joined': { icon: 'fa-users', bg: 'rgba(0,122,255,0.12)', color: '#007aff' },
+    'community_join_request': { icon: 'fa-user-plus', bg: 'rgba(255,149,0,0.12)', color: '#ff9500' },
+    'community_create_request': { icon: 'fa-plus-circle', bg: 'rgba(90,200,250,0.12)', color: '#5ac8fa' },
+    'system': { icon: 'fa-info-circle', bg: 'rgba(142,142,147,0.12)', color: '#8e8e93' }
+  };
+  return icons[type] || { icon: 'fa-bell', bg: 'rgba(142,142,147,0.12)', color: '#8e8e93' };
+}
+
+function markAllNotificationsRead() {
+  fetch('/api/user/notifications/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: USER_ID })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) {
+      toast('已全部标记为已读');
+      loadNotifCount();
+      // Remove unread class from all items
+      var items = qsa('.notif-item.unread');
+      items.forEach(function(item) { item.classList.remove('unread'); });
+    }
+  }).catch(function() {});
+}
+
+// ===== Online Status =====
+function startHeartbeat() {
+  if (window._heartbeatInterval) clearInterval(window._heartbeatInterval);
+
+  function beat() {
+    fetch('/api/user/heartbeat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({user_id: USER_ID})
+    }).catch(function() {});
+  }
+
+  beat(); // Immediate first beat
+  window._heartbeatInterval = setInterval(beat, 60000); // Every 60 seconds
+}
+
 // 初始化
 initTopbar();
 
+initNotifications();
+
 initSidebar();
 bindEvents();
+
+// Start heartbeat for online status
+startHeartbeat();
 
 // 默认显示发现页
 // showPanel('discover'); -- 默认留在欢迎页

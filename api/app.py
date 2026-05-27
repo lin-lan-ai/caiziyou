@@ -4,7 +4,7 @@
 提供用户审核、工具计算等后端功能
 """
 
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, Response
 from flask_cors import CORS
 import mysql.connector
 import json
@@ -16,6 +16,12 @@ from functools import wraps
 import time
 import logging
 import uuid
+from dotenv import load_dotenv
+from PIL import Image
+import io
+
+# 加载 .env 文件（从 api/ 目录向上找一级）
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # 简单内存限流
 _ratelimit_store = {}
@@ -44,6 +50,62 @@ from qq_push import send_group_message_retry
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def compress_image(image_data, max_size=1920, quality=85, target_format=None):
+    """
+    Compress image data using Pillow.
+
+    Args:
+        image_data: Raw bytes of the image
+        max_size: Maximum dimension (width or height) in pixels
+        quality: JPEG/WebP quality (1-100)
+        target_format: Force output format ('JPEG', 'PNG', 'WEBP', or None to auto-detect)
+
+    Returns:
+        Compressed bytes, or original bytes if compression fails or not an image
+    """
+    try:
+        img = Image.open(io.BytesIO(image_data))
+
+        # Preserve original format if not specified
+        if target_format is None:
+            target_format = img.format or 'JPEG'
+
+        # Convert RGBA to RGB for JPEG
+        if target_format == 'JPEG' and img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        elif img.mode == 'P':
+            img = img.convert('RGBA')
+
+        # Resize if larger than max_size
+        if max(img.width, img.height) > max_size:
+            ratio = max_size / max(img.width, img.height)
+            new_size = (int(img.width * ratio), int(img.height * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+
+        # Save compressed
+        buf = io.BytesIO()
+        save_kwargs = {'format': target_format}
+
+        if target_format in ('JPEG',):
+            save_kwargs['quality'] = quality
+            save_kwargs['optimize'] = True
+        elif target_format == 'WEBP':
+            save_kwargs['quality'] = quality
+        elif target_format == 'PNG':
+            save_kwargs['optimize'] = True
+
+        img.save(buf, **save_kwargs)
+        compressed = buf.getvalue()
+
+        # Only return compressed if it's actually smaller
+        if len(compressed) < len(image_data) * 0.9:  # At least 10% reduction
+            return compressed
+        return image_data
+
+    except Exception as e:
+        logger.warning(f"Image compression failed (non-critical): {e}")
+        return image_data
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
@@ -56,12 +118,12 @@ def add_no_cache(response):
     return response
 
 # 配置
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'caiziyou-secret-key-2026')
+app.config['SECRET_KEY'] = os.environ.get('JWT_SECRET', os.environ.get('SECRET_KEY', 'caiziyou-secret-key-2026'))
 app.config['DATABASE_CONFIG'] = {
-    'host': 'localhost',
-    'user': 'caiziyou_user',
-    'password': 'CaiziYou@2026',
-    'database': 'caiziyou_community_db',
+    'host': os.environ.get('COMMUNITY_DB_HOST', 'localhost'),
+    'user': os.environ.get('COMMUNITY_DB_USER', 'caiziyou_user'),
+    'password': os.environ.get('COMMUNITY_DB_PASS', 'CaiziYou@2026'),
+    'database': os.environ.get('COMMUNITY_DB_NAME', 'caiziyou_community_db'),
     'charset': 'utf8mb4'
 }
 
@@ -112,11 +174,9 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
         
-        # 从请求头或 query string 获取令牌
+        # 从请求头获取令牌
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split(" ")[1] if " " in request.headers['Authorization'] else None
-        if not token:
-            token = request.args.get('token')
         if not token and request.is_json:
             try:
                 token = request.json.get('token')
@@ -804,7 +864,8 @@ def friends_requests():
         # 收到的待处理申请
         cursor.execute("""
             SELECT f.id, f.status, f.created_at,
-                   u.id as user_id, u.username, u.nickname, u.friend_code, u.avatar_url
+                   u.id as user_id, u.username, u.nickname, u.friend_code, u.avatar_url,
+                   u.last_active_at
             FROM friend_requests f
             JOIN users u ON f.from_user_id = u.id
             WHERE f.to_user_id = %s
@@ -814,7 +875,8 @@ def friends_requests():
         # 发出的申请（包含所有状态）
         cursor.execute("""
             SELECT f.id, f.status, f.created_at,
-                   u.id as user_id, u.username, u.nickname, u.friend_code, u.avatar_url
+                   u.id as user_id, u.username, u.nickname, u.friend_code, u.avatar_url,
+                   u.last_active_at
             FROM friend_requests f
             JOIN users u ON f.to_user_id = u.id
             WHERE f.from_user_id = %s
@@ -822,6 +884,14 @@ def friends_requests():
         """, (user_id,))
         outgoing = cursor.fetchall()
         cursor.close(); conn.close()
+        # Compute is_online based on last_active_at (online if active within 2 minutes)
+        two_minutes_ago = datetime.datetime.now() - datetime.timedelta(minutes=2)
+        for friend in incoming:
+            last = friend.get('last_active_at')
+            friend['is_online'] = bool(last) and last > two_minutes_ago
+        for friend in outgoing:
+            last = friend.get('last_active_at')
+            friend['is_online'] = bool(last) and last > two_minutes_ago
         return jsonify({'success': True, 'incoming': incoming, 'outgoing': outgoing})
     except Exception as e:
         logger.error(f"好友申请列表错误: {e}")
@@ -952,6 +1022,51 @@ def friends_remove():
     except Exception as e:
         logger.error(f"删除好友错误: {e}")
         return jsonify({'error': '删除失败'}), 500
+
+
+@app.route('/api/friends/online-status', methods=['GET'])
+def friends_online_status():
+    """Check online status of friends"""
+    try:
+        user_id = request.args.get('user_id', type=int)
+        friend_ids = request.args.get('friend_ids', '')
+        if not user_id or not friend_ids:
+            return jsonify({'error': '参数缺失'}), 400
+
+        ids = [int(x) for x in friend_ids.split(',') if x.strip().isdigit()]
+        if not ids:
+            return jsonify({'success': True, 'statuses': {}})
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+
+        # User is online if last_active_at is within the last 5 minutes
+        placeholders = ','.join(['%s'] * len(ids))
+        cursor.execute(f"""
+            SELECT id,
+                   CASE WHEN last_active_at IS NOT NULL
+                        AND last_active_at > NOW() - INTERVAL 5 MINUTE
+                   THEN 1 ELSE 0 END as is_online
+            FROM users
+            WHERE id IN ({placeholders})
+        """, ids)
+
+        statuses = {}
+        for row in cursor.fetchall():
+            statuses[row['id']] = bool(row['is_online'])
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'statuses': statuses})
+    except Exception as e:
+        logger.error(f"Online status error: {e}")
+        return jsonify({'error': '查询失败'}), 500
+
+
 # ======== 团 API ========
 
 
@@ -1711,15 +1826,175 @@ def user_notifications_count():
             WHERE to_user_id = %s AND status = 'pending'
         """, (user_id,))
         pending_requests = cursor.fetchone()['cnt']
+        # 未读系统通知数
+        cursor.execute("SELECT COUNT(*) as cnt FROM notifications WHERE user_id = %s AND is_read = FALSE", (user_id,))
+        unread_notifications = cursor.fetchone()['cnt']
         cursor.close(); conn.close()
         return jsonify({
             'success': True,
             'unread_messages': unread_messages,
-            'pending_requests': pending_requests
+            'pending_requests': pending_requests,
+            'unread_notifications': unread_notifications
         })
     except Exception as e:
         logger.error(f"获取未读角标错误: {e}")
         return jsonify({'error': '获取失败'}), 500
+
+
+@app.route('/api/user/notifications/list', methods=['GET'])
+def user_notifications_list():
+    """Get user notifications with pagination"""
+    try:
+        user_id = request.args.get('user_id', type=int)
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        if not user_id:
+            return jsonify({'error': 'Missing user_id'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        offset = (page - 1) * limit
+
+        # Get total count
+        cursor.execute("SELECT COUNT(*) as cnt FROM notifications WHERE user_id = %s", (user_id,))
+        total = cursor.fetchone()['cnt']
+
+        # Get notifications with optional related user info
+        cursor.execute("""
+            SELECT n.*, u.username as related_username, u.nickname as related_nickname, u.avatar_url as related_avatar
+            FROM notifications n
+            LEFT JOIN users u ON n.related_user_id = u.id
+            WHERE n.user_id = %s
+            ORDER BY n.created_at DESC
+            LIMIT %s OFFSET %s
+        """, (user_id, limit, offset))
+        notifications = cursor.fetchall()
+
+        # Format dates
+        for n in notifications:
+            if isinstance(n.get('created_at'), datetime.datetime):
+                n['created_at'] = n['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            if isinstance(n.get('read_at'), datetime.datetime):
+                n['read_at'] = n['read_at'].strftime('%Y-%m-%d %H:%M:%S')
+
+        # Get unread count
+        cursor.execute("SELECT COUNT(*) as cnt FROM notifications WHERE user_id = %s AND is_read = FALSE", (user_id,))
+        unread = cursor.fetchone()['cnt']
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'notifications': notifications,
+            'total': total,
+            'unread': unread,
+            'page': page,
+            'limit': limit,
+            'pages': (total + limit - 1) // limit if total > 0 else 0
+        })
+    except Exception as e:
+        logger.error(f"Get notifications error: {e}")
+        return jsonify({'error': '获取失败'}), 500
+
+
+@app.route('/api/user/notifications/read', methods=['POST'])
+def user_notifications_read():
+    """Mark notification as read (single or all)"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        notification_id = data.get('notification_id')  # Optional: single notification
+
+        if not user_id:
+            return jsonify({'error': 'Missing user_id'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor()
+        if notification_id:
+            cursor.execute(
+                "UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE id = %s AND user_id = %s",
+                (notification_id, user_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE user_id = %s AND is_read = FALSE",
+                (user_id,)
+            )
+        conn.commit()
+        affected = cursor.rowcount
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'marked_read': affected})
+    except Exception as e:
+        logger.error(f"Mark read error: {e}")
+        return jsonify({'error': '操作失败'}), 500
+
+
+@app.route('/api/user/notifications/dismiss', methods=['POST'])
+def user_notifications_dismiss():
+    """Dismiss (delete) a single notification"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        notification_id = data.get('notification_id')
+
+        if not user_id or not notification_id:
+            return jsonify({'error': 'Missing parameters'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM notifications WHERE id = %s AND user_id = %s",
+            (notification_id, user_id)
+        )
+        conn.commit()
+        affected = cursor.rowcount
+        cursor.close()
+        conn.close()
+
+        if affected == 0:
+            return jsonify({'error': 'Notification not found'}), 404
+
+        return jsonify({'success': True, 'dismissed': notification_id})
+    except Exception as e:
+        logger.error(f"Dismiss notification error: {e}")
+        return jsonify({'error': '操作失败'}), 500
+
+
+@app.route('/api/user/heartbeat', methods=['POST'])
+def user_heartbeat():
+    """Update user's last_active_at timestamp"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Missing user_id'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET last_active_at = NOW() WHERE id = %s", (user_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Heartbeat error: {e}")
+        return jsonify({'error': '更新失败'}), 500
 
 
 # ======== 聊天 API ========
@@ -1783,6 +2058,8 @@ def upload_banner():
             img_data = base64.b64decode(image)
         except:
             return jsonify({'error': '图片数据无效'}), 400
+        # Compress banner (max 1920px, quality 85)
+        img_data = compress_image(img_data, max_size=1920, quality=85)
         upload_dir = '/var/www/caiziyou/public/uploads/banners'
         os.makedirs(upload_dir, exist_ok=True)
         filename = f'banner_{int(datetime.datetime.utcnow().timestamp())}.png'
@@ -1868,6 +2145,9 @@ def upload_post():
                 ext = '.mp4'
         filename = f'post_{int(datetime.datetime.utcnow().timestamp())}_{uuid.uuid4().hex[:4]}{ext}'
         filepath = os.path.join(upload_dir, filename)
+        # Compress images (not video/documents)
+        if ext in ('.jpg', '.png', '.webp'):
+            raw = compress_image(raw, max_size=1920, quality=85)
         with open(filepath, 'wb') as f:
             f.write(raw)
         detected = 'video' if ext == '.mp4' else ('image' if ext in ('.png','.jpg','.gif','.webp') else 'document')
@@ -1927,6 +2207,8 @@ def upload_avatar():
             img_data = base64.b64decode(image)
         except:
             return jsonify({'error': '图片数据无效'}), 400
+        # Compress avatar (max 512px, quality 85)
+        img_data = compress_image(img_data, max_size=512, quality=85)
         upload_dir = '/var/www/caiziyou/public/uploads/avatars'
         os.makedirs(upload_dir, exist_ok=True)
         filename = f'avatar_{user_id}_{int(datetime.datetime.utcnow().timestamp())}.png'
@@ -2026,6 +2308,65 @@ def chat_messages():
     except Exception as e:
         logger.error(f"获取消息错误: {e}")
         return jsonify({'error': '获取失败'}), 500
+
+
+@app.route('/api/chat/stream')
+def chat_stream():
+    """SSE endpoint for real-time chat messages"""
+    chat_id = request.args.get('chat_id', type=int)
+    user_id = request.args.get('user_id', type=int)
+
+    if not chat_id:
+        return jsonify({'error': 'Missing chat_id'}), 400
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+
+    def generate():
+        last_id = 0
+        while True:
+            try:
+                conn = get_db_connection()
+                if conn:
+                    cursor = conn.cursor(dictionary=True)
+                    cursor.execute("""
+                        SELECT id, chat_id, sender_id, message_type, content, media_url, is_read, created_at
+                        FROM private_messages
+                        WHERE chat_id = %s AND id > %s
+                        ORDER BY id ASC
+                    """, (chat_id, last_id))
+                    messages = cursor.fetchall()
+                    cursor.close()
+                    conn.close()
+
+                    for msg in messages:
+                        if msg['id'] > last_id:
+                            last_id = msg['id']
+                        data = json.dumps(msg, default=str)
+                        yield f"data: {data}\n\n"
+
+                    # Also mark messages as read
+                    if messages:
+                        conn = get_db_connection()
+                        if conn:
+                            cursor = conn.cursor()
+                            cursor.execute(
+                                "UPDATE private_messages SET is_read = TRUE, read_at = NOW() WHERE chat_id = %s AND sender_id != %s AND is_read = FALSE",
+                                (chat_id, user_id)
+                            )
+                            conn.commit()
+                            cursor.close()
+                            conn.close()
+
+            except Exception as e:
+                logger.error(f"SSE stream error: {e}")
+
+            time.sleep(1.5)
+
+    response = Response(generate(), mimetype='text/event-stream')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    response.headers['Connection'] = 'keep-alive'
+    return response
 
 
 @app.route('/api/chat/conversations', methods=['GET'])
@@ -2533,5 +2874,429 @@ def community_get_qq_group():
         return jsonify({'error': '获取失败'}), 500
 
 
+@app.route('/api/search', methods=['GET'])
+def search():
+    """Unified search across posts, users, and communities"""
+    try:
+        q = request.args.get('q', '').strip()
+        search_type = request.args.get('type', 'all')  # all, posts, users, communities
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+
+        if not q or len(q) < 1:
+            return jsonify({'error': '请输入搜索关键词'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': '数据库连接失败'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        result = {}
+        offset = (page - 1) * limit
+
+        # Search posts
+        if search_type in ('all', 'posts'):
+            try:
+                cursor.execute("""
+                    SELECT cp.id, cp.title, cp.description, cp.content_type, cp.created_at,
+                           c.name as community_name, c.id as community_id,
+                           MATCH(cp.title, cp.description) AGAINST(%s IN BOOLEAN MODE) as relevance
+                    FROM community_posts cp
+                    JOIN communities c ON cp.community_id = c.id
+                    WHERE MATCH(cp.title, cp.description) AGAINST(%s IN BOOLEAN MODE)
+                    ORDER BY relevance DESC
+                    LIMIT %s OFFSET %s
+                """, (q + '*', q + '*', limit, offset))
+                posts = cursor.fetchall()
+
+                cursor.execute("""
+                    SELECT COUNT(*) as cnt FROM community_posts cp
+                    WHERE MATCH(cp.title, cp.description) AGAINST(%s IN BOOLEAN MODE)
+                """, (q + '*',))
+                post_total = cursor.fetchone()['cnt']
+
+                result['posts'] = {
+                    'items': posts,
+                    'total': post_total,
+                    'type': 'posts'
+                }
+            except Exception as e:
+                logger.warning(f"Post search error: {e}")
+                result['posts'] = {'items': [], 'total': 0, 'error': str(e), 'type': 'posts'}
+
+        # Search users
+        if search_type in ('all', 'users'):
+            try:
+                cursor.execute("""
+                    SELECT id, username, nickname, avatar_url, bio, unique_id,
+                           MATCH(username, nickname) AGAINST(%s IN BOOLEAN MODE) as relevance
+                    FROM users
+                    WHERE MATCH(username, nickname) AGAINST(%s IN BOOLEAN MODE)
+                       OR username LIKE %s
+                    ORDER BY relevance DESC
+                    LIMIT %s OFFSET %s
+                """, (q + '*', q + '*', '%' + q + '%', limit, offset))
+                users = cursor.fetchall()
+
+                cursor.execute("""
+                    SELECT COUNT(*) as cnt FROM users
+                    WHERE MATCH(username, nickname) AGAINST(%s IN BOOLEAN MODE)
+                       OR username LIKE %s
+                """, (q + '*', '%' + q + '%'))
+                user_total = cursor.fetchone()['cnt']
+
+                result['users'] = {
+                    'items': users,
+                    'total': user_total,
+                    'type': 'users'
+                }
+            except Exception as e:
+                logger.warning(f"User search error: {e}")
+                result['users'] = {'items': [], 'total': 0, 'error': str(e), 'type': 'users'}
+
+        # Search communities
+        if search_type in ('all', 'communities'):
+            try:
+                cursor.execute("""
+                    SELECT c.*,
+                           MATCH(c.name, c.description) AGAINST(%s IN BOOLEAN MODE) as relevance
+                    FROM communities c
+                    WHERE MATCH(c.name, c.description) AGAINST(%s IN BOOLEAN MODE)
+                       OR c.name LIKE %s
+                    ORDER BY relevance DESC
+                    LIMIT %s OFFSET %s
+                """, (q + '*', q + '*', '%' + q + '%', limit, offset))
+                communities = cursor.fetchall()
+
+                cursor.execute("""
+                    SELECT COUNT(*) as cnt FROM communities
+                    WHERE MATCH(name, description) AGAINST(%s IN BOOLEAN MODE)
+                       OR name LIKE %s
+                """, (q + '*', '%' + q + '%'))
+                comm_total = cursor.fetchone()['cnt']
+
+                result['communities'] = {
+                    'items': communities,
+                    'total': comm_total,
+                    'type': 'communities'
+                }
+            except Exception as e:
+                logger.warning(f"Community search error: {e}")
+                result['communities'] = {'items': [], 'total': 0, 'error': str(e), 'type': 'communities'}
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'query': q,
+            'results': result
+        })
+
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        return jsonify({'error': '搜索失败'}), 500
+
+
+# ======== 密码重置 API ========
+
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    """Request password reset - generates token"""
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+
+        if not username:
+            return jsonify({'error': '请输入用户名'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': '数据库连接失败'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, username, email FROM users WHERE username = %s AND status = 'active'", (username,))
+        user = cursor.fetchone()
+
+        if not user:
+            cursor.close()
+            conn.close()
+            # Don't reveal whether user exists - return generic message
+            return jsonify({'success': True, 'message': '如果账户存在，重置链接已生成'})
+
+        # Generate token
+        token = hashlib.sha256(f"{user['id']}:{user['username']}:{datetime.datetime.utcnow().timestamp()}:{os.urandom(16).hex()}".encode()).hexdigest()
+
+        # Set expiry to 24 hours
+        expires_at = datetime.datetime.now() + datetime.timedelta(hours=24)
+
+        # Store reset request (status='pending' requires admin approval)
+        cursor.execute("""
+            INSERT INTO password_resets (user_id, token, status, expires_at)
+            VALUES (%s, %s, 'pending', %s)
+        """, (user['id'], token, expires_at))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        write_log(user['id'], 'operation', '密码重置请求', '用户请求了密码重置')
+
+        # Return the token in the response (so user can use it directly)
+        # In production, this would be emailed. Here we show it on screen.
+        return jsonify({
+            'success': True,
+            'message': '重置请求已提交，请联系管理员审核，或直接使用重置链接',
+            'token': token,
+            'reset_url': f"/reset_password.php?token={token}"
+        })
+
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        return jsonify({'error': '处理失败'}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """Reset password using token"""
+    try:
+        data = request.get_json()
+        token = data.get('token', '').strip()
+        new_password = data.get('new_password', '').strip()
+
+        if not token or not new_password:
+            return jsonify({'error': '参数不完整'}), 400
+
+        if len(new_password) < 6:
+            return jsonify({'error': '密码至少6位'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': '数据库连接失败'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+
+        # Find valid token (approved or auto mode)
+        cursor.execute("""
+            SELECT pr.*, u.username
+            FROM password_resets pr
+            JOIN users u ON pr.user_id = u.id
+            WHERE pr.token = %s AND pr.status IN ('pending', 'approved') AND pr.expires_at > NOW()
+        """, (token,))
+        reset = cursor.fetchone()
+
+        if not reset:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': '重置链接无效或已过期'}), 400
+
+        # Auto-approve pending tokens on use (simplified flow)
+        if reset['status'] == 'pending':
+            cursor.execute("UPDATE password_resets SET status = 'approved', approved_at = NOW() WHERE id = %s", (reset['id'],))
+
+        # Hash new password
+        import bcrypt
+        new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        # Update password
+        cursor.execute("UPDATE users SET password_hash = %s WHERE id = %s", (new_hash, reset['user_id']))
+
+        # Mark token as used
+        cursor.execute("UPDATE password_resets SET status = 'used', used_at = NOW() WHERE id = %s", (reset['id'],))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        write_log(reset['user_id'], 'operation', '密码重置', '用户通过重置链接更改了密码')
+
+        return jsonify({'success': True, 'message': '密码已重置，请使用新密码登录'})
+
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        return jsonify({'error': '重置失败'}), 500
+
+
+@app.route('/api/auth/reset-info', methods=['GET'])
+def reset_info():
+    """Get info about a reset token"""
+    try:
+        token = request.args.get('token', '').strip()
+        if not token:
+            return jsonify({'error': 'Missing token'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT pr.status, pr.expires_at, u.username
+            FROM password_resets pr
+            JOIN users u ON pr.user_id = u.id
+            WHERE pr.token = %s
+        """, (token,))
+        reset = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not reset:
+            return jsonify({'error': 'Invalid token'}), 404
+
+        if reset['expires_at'] < datetime.datetime.now():
+            return jsonify({'error': 'Token expired'}), 400
+
+        return jsonify({
+            'success': True,
+            'username': reset['username'],
+            'status': reset['status'],
+            'valid': reset['status'] in ('pending', 'approved')
+        })
+
+    except Exception as e:
+        logger.error(f"Reset info error: {e}")
+        return jsonify({'error': '查询失败'}), 500
+
+
+@app.route('/api/admin/password-resets', methods=['GET'])
+@token_required
+def admin_password_resets(current_user):
+    """Admin - list all password reset requests"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT pr.*, u.username, u.nickname
+            FROM password_resets pr
+            JOIN users u ON pr.user_id = u.id
+            ORDER BY pr.requested_at DESC
+            LIMIT 50
+        """)
+        resets = cursor.fetchall()
+
+        for r in resets:
+            if isinstance(r.get('requested_at'), datetime.datetime):
+                r['requested_at'] = r['requested_at'].strftime('%Y-%m-%d %H:%M')
+            if isinstance(r.get('expires_at'), datetime.datetime):
+                r['expires_at'] = r['expires_at'].strftime('%Y-%m-%d %H:%M')
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'resets': resets})
+    except Exception as e:
+        logger.error(f"Admin password resets error: {e}")
+        return jsonify({'error': '获取失败'}), 500
+
+
+@app.route('/api/admin/approve-reset', methods=['POST'])
+@token_required
+def admin_approve_reset(current_user):
+    """Admin approve/reject a password reset request"""
+    try:
+        data = request.get_json()
+        reset_id = data.get('reset_id')
+        action = data.get('action', 'approve')
+
+        if not reset_id:
+            return jsonify({'error': 'Missing reset_id'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Connection failed'}), 500
+
+        cursor = conn.cursor()
+        if action == 'approve':
+            cursor.execute(
+                "UPDATE password_resets SET status = 'approved', approved_by = %s, approved_at = NOW() WHERE id = %s AND status = 'pending'",
+                (current_user['id'], reset_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE password_resets SET status = 'expired' WHERE id = %s AND status = 'pending'",
+                (reset_id,)
+            )
+        conn.commit()
+        affected = cursor.rowcount
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'affected': affected,
+            'message': '已批准' if action == 'approve' else '已拒绝'
+        })
+    except Exception as e:
+        logger.error(f"Admin approve reset error: {e}")
+        return jsonify({'error': '操作失败'}), 500
+
+
+# Ensure last_active_at column exists (safer approach)
+try:
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        # Check if column exists by selecting it
+        try:
+            cursor.execute("SELECT last_active_at FROM users LIMIT 1")
+        except:
+            # Column doesn't exist — add it
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN last_active_at DATETIME DEFAULT NULL")
+                conn.commit()
+                logger.info("Added last_active_at column to users table")
+            except Exception as alter_err:
+                logger.warning(f"Could not add last_active_at column: {alter_err}")
+        cursor.close()
+        conn.close()
+except Exception as e:
+    logger.warning(f"last_active_at migration check failed: {e}")
+
+# Create FULLTEXT indexes for search
+try:
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("ALTER TABLE community_posts ADD FULLTEXT INDEX ft_posts_search (title, description)")
+        cursor.execute("ALTER TABLE users ADD FULLTEXT INDEX ft_users_search (username, nickname)")
+        cursor.execute("ALTER TABLE communities ADD FULLTEXT INDEX ft_communities_search (name, description)")
+        conn.commit()
+        cursor.close()
+        conn.close()
+except Exception as e:
+    logger.warning(f"Could not create FULLTEXT indexes (may already exist): {e}")
+
+# Create password_resets table on startup
 if __name__ == '__main__':
+    try:
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS password_resets (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    user_id INT NOT NULL,
+                    token VARCHAR(64) UNIQUE NOT NULL,
+                    status ENUM('pending', 'approved', 'used', 'expired') DEFAULT 'pending',
+                    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    approved_by INT DEFAULT NULL,
+                    approved_at DATETIME DEFAULT NULL,
+                    used_at DATETIME DEFAULT NULL,
+                    expires_at DATETIME NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX idx_token (token),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.info("password_resets table ensured")
+    except Exception as e:
+        logger.error(f"Failed to create password_resets table: {e}")
+
     app.run(host='0.0.0.0', port=5000, debug=False)

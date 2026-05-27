@@ -3,11 +3,34 @@
  * 菜籽游官网 - 数据库配置文件
  */
 
-// 数据库配置
-define('DB_HOST', 'localhost');
-define('DB_USER', 'caiziyou_user');
-define('DB_PASS', 'CaiziYou@2026');
-define('DB_NAME', 'caiziyou_db');
+// .env 加载函数（仅在未定义时加载一次）
+if (!function_exists('loadEnv')) {
+    function loadEnv() {
+        $envFile = __DIR__ . '/../.env';
+        if (file_exists($envFile)) {
+            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if (strpos($trimmed, '#') === 0) continue;
+                if (strpos($line, '=') !== false) {
+                    list($key, $value) = explode('=', $line, 2);
+                    $key = trim($key);
+                    $value = trim($value);
+                    putenv("$key=$value");
+                    $_ENV[$key] = $value;
+                }
+            }
+        }
+    }
+}
+loadEnv();
+
+// 数据库配置（从环境变量读取，带默认值回退）
+// Phase 1b: 统一指向 caiziyou_community_db（原 caiziyou_db 不再使用）
+define('DB_HOST', getenv('COMMUNITY_DB_HOST') ?: getenv('DB_HOST') ?: 'localhost');
+define('DB_USER', getenv('COMMUNITY_DB_USER') ?: 'caiziyou_community');
+define('DB_PASS', getenv('COMMUNITY_DB_PASS') ?: 'Community@2026');
+define('DB_NAME', getenv('COMMUNITY_DB_NAME') ?: 'caiziyou_community_db');
 
 // 网站配置
 define('SITE_NAME', '菜籽游官网');
@@ -19,9 +42,9 @@ define('SESSION_TIMEOUT', 3600); // 会话超时时间（秒）
 define('MAX_LOGIN_ATTEMPTS', 5); // 最大登录尝试次数
 define('LOCKOUT_TIME', 900); // 锁定时间（秒）
 
-// 错误报告设置（开发环境）
+// 错误报告设置
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
 // 设置时区
 date_default_timezone_set(SITE_TIMEZONE);

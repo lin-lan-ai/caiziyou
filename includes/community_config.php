@@ -3,11 +3,33 @@
  * 菜籽游x纵流社群平台 - 配置文件
  */
 
-// 数据库配置
-define('COMMUNITY_DB_HOST', 'localhost');
-define('COMMUNITY_DB_USER', 'caiziyou_community');
-define('COMMUNITY_DB_PASS', 'Community@2026');
-define('COMMUNITY_DB_NAME', 'caiziyou_community_db');
+// .env 加载函数（仅在未定义时加载一次）
+if (!function_exists('loadEnv')) {
+    function loadEnv() {
+        $envFile = __DIR__ . '/../.env';
+        if (file_exists($envFile)) {
+            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if (strpos($trimmed, '#') === 0) continue;
+                if (strpos($line, '=') !== false) {
+                    list($key, $value) = explode('=', $line, 2);
+                    $key = trim($key);
+                    $value = trim($value);
+                    putenv("$key=$value");
+                    $_ENV[$key] = $value;
+                }
+            }
+        }
+    }
+}
+loadEnv();
+
+// 数据库配置（从环境变量读取，带默认值回退）
+define('COMMUNITY_DB_HOST', getenv('COMMUNITY_DB_HOST') ?: 'localhost');
+define('COMMUNITY_DB_USER', getenv('COMMUNITY_DB_USER') ?: 'caiziyou_community');
+define('COMMUNITY_DB_PASS', getenv('COMMUNITY_DB_PASS') ?: 'Community@2026');
+define('COMMUNITY_DB_NAME', getenv('COMMUNITY_DB_NAME') ?: 'caiziyou_community_db');
 
 // 网站配置
 define('COMMUNITY_SITE_NAME', '菜籽游x纵流社群');
@@ -50,7 +72,7 @@ define('CSRF_TOKEN_LIFETIME', 1800);
 
 // 错误报告设置
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
 // 设置时区
 date_default_timezone_set(COMMUNITY_TIMEZONE);

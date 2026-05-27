@@ -108,12 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 创建用户
             $unique_id = 'U' . time() . rand(1000, 9999);
             $stmt = $conn->prepare("
-                INSERT INTO users (username, email, password_hash, full_name, nickname, user_note, registration_status, unique_id, created_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO users (username, email, password_hash, nickname, unique_id, created_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
             ");
-            $stmt->bind_param("ssssssss", $username, $email, $password_hash, $full_name, $nickname, $user_note, $regStatus, $unique_id);
-            $full_name = $nickname;
-            $stmt->bind_param("sssssss", $username, $email, $password_hash, $full_name, $nickname, $user_note, $unique_id);
+            $stmt->bind_param("sssss", $username, $email, $password_hash, $nickname, $unique_id);
             
             if ($stmt->execute()) {
                 $user_id = $stmt->insert_id;

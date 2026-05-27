@@ -345,6 +345,9 @@ $siteName = getSystemSetting('site_name', '菜籽游x纵流社群');
                             <span>入驻「纵流」？<a href="/register.php" style="color: var(--accent);">立即入驻</a></span>
                             <a href="#" id="adminLink">...</a>
                         </div>
+                        <div style="margin-top:12px;font-size:0.8em;">
+                            <a href="/forgot_password.php" style="color: var(--text-secondary); text-decoration: none;">忘记密码？</a>
+                        </div>
                     </div>
                 </div>
             </div>

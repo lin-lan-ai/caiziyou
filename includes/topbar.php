@@ -19,6 +19,23 @@
                 <div style="color:#888;font-size:13px;">会话异常</div>
             <?php else: ?>
             <!-- 已登录状态：显示用户头像和菜单 -->
+            <!-- Notification Bell -->
+            <div class="topbar-notif" id="notifBell" style="margin-right:16px;position:relative;cursor:pointer">
+              <i class="fas fa-bell" style="font-size:20px;color:var(--text-dim)"></i>
+              <span class="notif-badge" id="notifBadge" style="display:none;position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;border-radius:8px;background:var(--danger);color:#fff;font-size:10px;font-weight:600;align-items:center;justify-content:center;padding:0 4px;border:2px solid #fff">0</span>
+              <div class="notif-dropdown" id="notifDropdown" style="position:absolute;top:calc(100% + 8px);right:-8px;width:360px;max-height:480px;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.06);display:none;z-index:1001;overflow:hidden">
+                <div class="notif-dropdown-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(0,0,0,0.06);font-weight:600;font-size:14px">
+                  <span>通知</span>
+                  <button class="notif-mark-read" id="notifMarkAllRead" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer">全部已读</button>
+                </div>
+                <div class="notif-dropdown-list" id="notifList" style="overflow-y:auto;max-height:360px">
+                  <div class="notif-loading" style="text-align:center;padding:24px;color:var(--text-dim);font-size:13px">加载中...</div>
+                </div>
+                <div class="notif-dropdown-footer" style="padding:10px 16px;text-align:center;border-top:1px solid rgba(0,0,0,0.06);font-size:12px;color:var(--accent);cursor:pointer">
+                  <span id="notifMore">查看全部</span>
+                </div>
+              </div>
+            </div>
             <div class="user-avatar" id="userAvatar">
                 <img src="<?php echo htmlspecialchars($currentUser['avatar_url'] ?? '/assets/images/default-avatar.png'); ?>" 
                      alt="<?php echo htmlspecialchars($currentUser['nickname'] ?? $currentUser['username']); ?>"

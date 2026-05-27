@@ -221,6 +221,163 @@ textarea{resize:vertical;min-height:60px}
 .profile-btn:hover{opacity:.8}
 .profile-btn-primary{background:#007aff;color:#fff}
 </style>
+/* Notification Bell */
+.topbar-notif {
+  position: relative;
+  cursor: pointer;
+  margin-right: 16px;
+  display: flex;
+  align-items: center;
+}
+.topbar-notif i {
+  font-size: 20px;
+  color: var(--text-dim);
+  transition: color 0.2s;
+}
+.topbar-notif:hover i {
+  color: var(--accent);
+}
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+  border: 2px solid var(--bg);
+}
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -8px;
+  width: 360px;
+  max-height: 480px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  border: 1px solid rgba(0,0,0,0.06);
+  display: none;
+  z-index: 1001;
+  overflow: hidden;
+}
+.notif-dropdown.active {
+  display: block;
+  animation: slideDown 0.2s ease;
+}
+.notif-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-bright);
+}
+.notif-mark-read {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.notif-mark-read:hover {
+  background: var(--accent-dim);
+}
+.notif-dropdown-list {
+  overflow-y: auto;
+  max-height: 360px;
+}
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.notif-item:hover {
+  background: #f8f8fa;
+}
+.notif-item.unread {
+  background: var(--accent-dim);
+}
+.notif-item.unread:hover {
+  background: rgba(0,122,255,0.1);
+}
+.notif-item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.notif-item-content {
+  flex: 1;
+  min-width: 0;
+}
+.notif-item-title {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.notif-item-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+.notif-item-time {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.notif-loading {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.notif-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.notif-empty i {
+  font-size: 28px;
+  margin-bottom: 8px;
+  color: var(--accent-dim);
+}
+.notif-dropdown-footer {
+  padding: 10px 16px;
+  text-align: center;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.notif-dropdown-footer:hover {
+  background: #f8f8fa;
+}
+</style>
 <script>USER_ID=<?=$userId?>;USER_ROLE='<?=$userRole?>'</script>
 </head>
 <body>
@@ -249,8 +406,28 @@ textarea{resize:vertical;min-height:60px}
       <div class="topbar-item admin-only" data-tab="admin"><i class="fas fa-shield-alt"></i><span>管理</span></div>
       <div class="topbar-item" onclick="window.location.href='/files.php'"><i class="fas fa-cloud-download-alt"></i><span>文件</span></div>
 
+      <div class="topbar-search" id="topbarSearch">
+        <i class="fas fa-search"></i>
+      </div>
     </div>
     <div class="topbar-right" id="topbarRight">
+      <!-- Notification Bell -->
+      <div class="topbar-notif" id="notifBell">
+        <i class="fas fa-bell"></i>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-dropdown-header">
+            <span>通知</span>
+            <button class="notif-mark-read" id="notifMarkAllRead">全部已读</button>
+          </div>
+          <div class="notif-dropdown-list" id="notifList">
+            <div class="notif-loading">加载中...</div>
+          </div>
+          <div class="notif-dropdown-footer">
+            <span id="notifMore">查看全部</span>
+          </div>
+        </div>
+      </div>
       <div class="topbar-avatar" id="topbarAvatar">
         <img src="<?=htmlspecialchars($user['avatar_url'] ?? '/assets/images/default-avatar.png')?>" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="width:32px;height:32px;border-radius:50%;object-fit:cover">
         <div style="display:none;width:32px;height:32px;border-radius:50%;background:var(--accent-dim);align-items:center;justify-content:center"><i class="fas fa-user" style="color:var(--accent);font-size:14px"></i></div>

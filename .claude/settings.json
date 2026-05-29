@@ -1,0 +1,11 @@
+{
+  "skills": {
+    "available": [
+      {
+        "name": "db-manager",
+        "description": "MySQL 数据库管理。管理 caiziyou_community_db 及相关数据库。",
+        "location": "/root/.openclaw/workspace/skills/db-manager/SKILL.md"
+      }
+    ]
+  }
+}

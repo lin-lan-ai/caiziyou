@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head><title>纵流 · WireGuard 节点 · 配置教程</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+body{font-family:system-ui,sans-serif;background:#1a1a2e;color:#eee;max-width:620px;margin:auto;padding:20px;}
+h1{color:#45f3ff;text-align:center;margin-bottom:4px;font-size:22px;}
+.subtitle{text-align:center;color:#888;font-size:14px;margin-bottom:24px;}
+.card{background:#16213e;border-radius:12px;padding:20px;margin:16px 0;}
+.card h3{color:#45f3ff;margin:0 0 12px 0;display:flex;align-items:center;gap:8px;font-size:16px;}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:14px;}
+.info-row .label{color:#888;flex-shrink:0;}
+.info-row .value{color:#eee;font-family:monospace;font-size:12px;margin:0 6px;word-break:break-all;}
+.url-box{background:#0f3460;padding:12px;border-radius:8px;word-break:break-all;font-size:12px;color:#a8d8ea;margin:10px 0;white-space:pre-wrap;line-height:1.6;}
+.copy-btn{background:#45f3ff;color:#000;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold;width:100%;font-size:15px;margin-top:8px;}
+.copy-btn:active{opacity:.8;}
+.mini-copy{background:transparent;border:1px solid #45f3ff55;color:#45f3ff;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:12px;margin-left:6px;flex-shrink:0;}
+.step{background:#0a0a1a;border-radius:8px;padding:14px;margin:10px 0;border-left:3px solid #45f3ff;}
+.step .num{color:#45f3ff;font-weight:bold;}
+.step-warn{border-left-color:#e87a8a;}
+.step-warn .num{color:#e87a8a;}
+code{background:#0f3460;padding:2px 6px;border-radius:4px;font-size:12px;color:#a8d8ea;}
+.footer{text-align:center;color:#555;font-size:12px;margin-top:30px;}
+.download-btn{display:block;text-align:center;background:#e87a8a;color:#000;padding:12px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;}
+.warn-box{background:#e87a8a15;border:1px solid #e87a8a55;border-radius:8px;padding:12px;margin:10px 0;font-size:13px;color:#e87a8a;}
+.ok-box{background:#00c85315;border:1px solid #00c85355;border-radius:8px;padding:12px;margin:10px 0;font-size:13px;color:#00c853;}
+.tab-bar{display:flex;gap:6px;margin-bottom:16px;}
+.tab-btn{flex:1;text-align:center;padding:10px;border-radius:8px;border:1px solid #45f3ff33;color:#888;background:transparent;cursor:pointer;font-size:13px;transition:all .2s;}
+.tab-btn.active{background:#45f3ff;color:#000;font-weight:bold;border-color:#45f3ff;}
+.tab-btn:hover:not(.active){border-color:#45f3ff88;color:#ccc;}
+</style>
+</head>
+<body>
+<h1>📡 纵流节点</h1>
+<p class="subtitle">WireGuard · 保姆级配置教程</p>
+
+<div class="tab-bar">
+<div class="tab-btn active" onclick="switchTab('clash')">⚙ Clash</div>
+<div class="tab-btn" onclick="switchTab('wgapp')">📱 WireGuard App</div>
+<div class="tab-btn" onclick="switchTab('karing')">🧩 Karing</div>
+</div>
+
+<!-- =========== Clash 教程 =========== -->
+<div id="tab-clash" class="tab-content">
+<div class="card">
+<div class="warn-box">
+⚠ Clash 对 WireGuard 支持有限，部分旧版内核不兼容。<br>
+推荐用 <b>URL 下载配置</b> 方式，即配即用。
+</div>
+
+<div class="step">
+<span class="num">① 复制订阅链接</span><br>
+<span style="color:#aaa;font-size:13px;">这个链接是 Clash 格式的节点配置</span>
+</div>
+<button class="copy-btn" onclick="copyClashUrl()" style="margin-top:0;">📋 复制 Clash 订阅链接</button>
+<div class="url-box" id="clashUrl" style="margin-top:4px;">加载中...</div>
+
+<div class="step">
+<span class="num">② 打开 Clash → Profiles → 从 URL 下载</span><br>
+<ol style="margin:4px 0 0 0;padding-left:18px;color:#ccc;font-size:13px;line-height:1.8;">
+<li>点 <code>Profiles</code>（配置）页面</li>
+<li>在输入框里粘贴刚才复制的链接</li>
+<li>点 <code>下载</code> 按钮</li>
+<li>下载完成后点右边 <b>启用</b> 这个配置</li>
+</ol>
+</div>
+
+<div class="step">
+<span class="num">③ 去 Proxies 选中节点</span><br>
+<span style="color:#aaa;font-size:13px;">左侧点 <code>Proxies</code> → 在 <code>节点选择</code> 组里点「纵流-WG」→ 亮绿灯</span>
+</div>
+
+<div class="ok-box">
+✅ 完成！开着 Clash 访问 https://ip.sb 查看 IP 是否变化
+</div>
+
+<div class="step step-warn">
+<span class="num">⚠ 如果连不上</span><br>
+- 尝试以<b>管理员身份</b>运行 Clash<br>
+- 在 <b>设置</b> 里开启 <b>TUN 模式</b><br>
+- 如果还是不行，切到「WireGuard App」标签用官方客户端<br>
+- 注意：此配置已包含本站直连规则，不会影响你访问菜籽游
+</div>
+</div>
+</div>
+
+<!-- =========== WireGuard App 教程 =========== -->
+<div id="tab-wgapp" class="tab-content" style="display:none;">
+<div class="card">
+<h3>📱 WireGuard 官方 App（iOS/Android）</h3>
+<p style="color:#888;font-size:13px;margin-bottom:12px;">先从下方下载 <code>client.conf</code>，然后按步骤导入：</p>
+
+<a href="/sub/client.conf" class="download-btn">⬇ 下载 client.conf</a>
+
+<div class="step"><span class="num">1.</span> 打开 WireGuard App</div>
+<div class="step"><span class="num">2.</span> 点右下角 <code>+</code> → <code>从文件或存档导入</code></div>
+<div class="step"><span class="num">3.</span> 找到刚才下载的 <code>client.conf</code>，选中它</div>
+<div class="step"><span class="num">4.</span> 导入成功后会看到「纵流-WG」隧道</div>
+<div class="step"><span class="num">5.</span> 点右边的开关，开启连接</div>
+<div class="ok-box">✅ 开关变绿就说明连上了</div>
+
+<p style="color:#888;font-size:13px;margin:16px 0 8px 0;">想手动填也行，参考下面的字段：</p>
+
+<div style="font-size:14px;font-weight:bold;color:#45f3ff;margin:12px 0 4px 0;">▸ 接口（Interface）</div>
+<div class="step"><span class="num">名称</span><br>随便填，例如 <code>纵流-WG</code> <button class="mini-copy" onclick="copyText('纵流-WG')" title="复制">📋</button></div>
+<div class="step"><span class="num">私钥</span><br><span style="color:#e87a8a;font-size:12px;">⚠ 打开 client.conf，找到 <code>[Interface]</code> 下的 PrivateKey，复制它</span></div>
+<div class="step"><span class="num">地址</span><br><code>10.0.0.2/24</code> <button class="mini-copy" onclick="copyText('10.0.0.2/24')" title="复制">📋</button></div>
+<div class="step"><span class="num">DNS</span><br><code>8.8.8.8, 1.1.1.1</code> <button class="mini-copy" onclick="copyText('8.8.8.8, 1.1.1.1')" title="复制">📋</button></div>
+<div class="step"><span class="num">MTU</span><br><code>1420</code>（可选） <button class="mini-copy" onclick="copyText('1420')" title="复制">📋</button></div>
+
+<div style="font-size:14px;font-weight:bold;color:#45f3ff;margin:12px 0 4px 0;">▸ 对端（Peer）</div>
+<div class="step"><span class="num">公钥</span><br><code>2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=</code> <button class="mini-copy" onclick="copyText('2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=')" title="复制">📋</button></div>
+<div class="step"><span class="num">端点</span><br><code>154.64.255.112:51820</code> <button class="mini-copy" onclick="copyText('154.64.255.112:51820')" title="复制">📋</button></div>
+<div class="step"><span class="num">允许的IP</span><br><code>0.0.0.0/0</code> <button class="mini-copy" onclick="copyText('0.0.0.0/0')" title="复制">📋</button></div>
+<div class="step"><span class="num">持续保活</span><br><code>25</code> 秒 <button class="mini-copy" onclick="copyText('25')" title="复制">📋</button></div>
+<p style="color:#888;font-size:12px;margin-top:12px;">填完 → 右上角 <code>保存</code> → 开关打开</p>
+</div>
+</div>
+
+<!-- =========== Karing 教程 =========== -->
+<div id="tab-karing" class="tab-content" style="display:none;">
+<div class="card">
+<h3>🧩 Karing（全平台）</h3>
+<p style="color:#888;font-size:13px;margin-bottom:12px;">订阅链接方式导入，最方便：</p>
+
+<div class="url-box" id="subUrl">加载中...</div>
+<button class="copy-btn" onclick="copySub()">📋 复制订阅链接</button>
+
+<div class="step"><span class="num">1.</span> 打开 Karing App</div>
+<div class="step"><span class="num">2.</span> 点击左下角 <code>订阅</code></div>
+<div class="step"><span class="num">3.</span> 点右上角 <code>+</code> → <code>添加</code></div>
+<div class="step"><span class="num">4.</span> 粘贴刚才复制的链接 → 点 <code>确认</code></div>
+<div class="step"><span class="num">5.</span> 回到首页，点 <code>连接</code> 开关</div>
+<div class="ok-box">✅ 连上后状态会显示「已连接」</div>
+
+<p style="color:#888;font-size:13px;margin:16px 0 8px 0;">想手动配置也行，参考 WireGuard App 页面的字段。</p>
+</div>
+</div>
+
+<div class="card">
+<h3>🔗 节点信息（快速复制）</h3>
+<div class="info-row"><span class="label">地址</span><span class="value">154.64.255.112:51820</span><button class="mini-copy" onclick="copyText('154.64.255.112:51820')" title="复制">📋</button></div>
+<div class="info-row"><span class="label">内网 IP</span><span class="value">10.0.0.2/24</span><button class="mini-copy" onclick="copyText('10.0.0.2/24')" title="复制">📋</button></div>
+<div class="info-row"><span class="label">服务器公钥</span><span class="value" style="font-size:11px;">2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=</span><button class="mini-copy" onclick="copyText('2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=')" title="复制">📋</button></div>
+<div class="info-row"><span class="label">DNS</span><span class="value">8.8.8.8, 1.1.1.1</span><button class="mini-copy" onclick="copyText('8.8.8.8, 1.1.1.1')" title="复制">📋</button></div>
+</div>
+
+<div class="footer">纵流 · 菜籽游</div>
+
+<script>
+var baseUrl = window.location.origin;
+var subUrl = baseUrl + '/sub/node.txt';
+var clashUrl = baseUrl + '/sub/clash.yaml';
+var subEl = document.getElementById('subUrl');
+if (subEl) subEl.textContent = subUrl;
+var clashEl = document.getElementById('clashUrl');
+if (clashEl) clashEl.textContent = clashUrl;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(function(el) { el.style.display = 'none'; });
+  document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
+  var t = document.getElementById('tab-' + name);
+  if (t) t.style.display = 'block';
+  var b = document.querySelector('.tab-btn[onclick*="' + name + '"]');
+  if (b) b.classList.add('active');
+}
+
+function copySub(){
+  navigator.clipboard.writeText(subUrl).then(function(){alert('✅ 订阅链接已复制，去 Karing 粘贴')})
+}
+
+function copyText(t){
+  navigator.clipboard.writeText(t).then(function(){
+    var btn=event.target;
+    btn.textContent='✅';
+    setTimeout(function(){btn.textContent='📋'},1200)
+  }).catch(function(){alert('复制失败，请手动选中复制')})
+}
+
+function copyClashUrl(){
+  var url = window.location.origin + '/sub/clash.yaml';
+  navigator.clipboard.writeText(url).then(function(){alert('✅ Clash 订阅链接已复制！\n\n去 Profiles → 粘贴到 URL 输入框 → 点下载')})
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+port: 7890
+socks-port: 7891
+allow-lan: false
+mode: Rule
+log-level: info
+
+proxies:
+  - name: "纵流-WG"
+    type: wireguard
+    server: 154.64.255.112
+    port: 51820
+    ip: 10.0.0.2
+    ip-version: ipv4
+    private-key: MIILyV5TWu06+BE9eobln0fN/jvSjB/n5nIjOlCWEkk=
+    public-key: 2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=
+    allowed-ips:
+      - 0.0.0.0/0
+    dns:
+      - 8.8.8.8
+    mtu: 1420
+
+proxy-groups:
+  - name: "节点选择"
+    type: select
+    proxies:
+      - "纵流-WG"
+      - DIRECT
+
+rules:
+  - DOMAIN-SUFFIX,cziyo.club,DIRECT
+  - MATCH,节点选择

@@ -1,0 +1,34 @@
+# 环境变量（敏感信息）
+.env
+
+# Python虚拟环境
+venv/
+api/venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# 编辑器
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 备份
+bak_*
+.bak
+*.bak
+
+# 下载资源（非代码）
+public/downloads/
+
+# 用户上传
+public/uploads/
+
+# 临时文件
+*.log
+*.tmp

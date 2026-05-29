@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "sub_name": "纵流-WireGuard",
+  "nodes": [
+    {
+      "type": "wireguard",
+      "name": "纵流-WG",
+      "server": "154.64.255.112",
+      "port": 51820,
+      "ip": "10.0.0.2",
+      "private_key": "MIILyV5TWu06+BE9eobln0fN/jvSjB/n5nIjOlCWEkk=",
+      "public_key": "2i9eKt89CCUJPgUO5TibW+GZtyhpCQLcXfomaje31kc=",
+      "dns": "8.8.8.8",
+      "allowed_ips": "0.0.0.0/0",
+      "mtu": 1420,
+      "reserved": [0,0,0]
+    }
+  ]
+}

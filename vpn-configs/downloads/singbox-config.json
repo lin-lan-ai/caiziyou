@@ -1,0 +1,64 @@
+{
+  "dns": {
+    "servers": [
+      { "tag": "google", "address": "8.8.8.8", "detour": "direct" },
+      { "tag": "local", "address": "114.114.114.114", "detour": "direct" }
+    ],
+    "rules": [
+      { "server": "local", "geosite": "cn" }
+    ],
+    "strategy": "prefer_ipv4",
+    "independent_cache": true
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": "172.19.0.1/30",
+      "auto_route": true,
+      "strict_route": false,
+      "stack": "gvisor",
+      "sniff": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "shadowsocks",
+      "tag": "proxy",
+      "server": "154.64.255.112",
+      "server_port": 44380,
+      "method": "aes-256-gcm",
+      "password": "juniusSS2026!"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "outbound": "direct"
+      },
+      {
+        "geosite": "cn",
+        "outbound": "direct"
+      },
+      {
+        "geoip": "cn",
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "172.19.0.0/30",
+          "198.18.0.0/15"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  }
+}

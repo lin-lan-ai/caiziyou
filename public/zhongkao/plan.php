@@ -503,7 +503,7 @@ $is_logged_in = isset($_SESSION['user_id']);
         });
       });
       
-      // TODO: 发送到后端 API
+      await ZhongkaoAPI.addPlan({subject, title: content, start_time: startTime, end_time: endTime});
       console.log('保存计划:', plans);
     }
     

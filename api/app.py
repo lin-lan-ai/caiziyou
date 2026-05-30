@@ -5,7 +5,9 @@
 """
 
 from flask import Flask, request, jsonify, session, Response
+from zhongkao_api import zhongkao_bp
 from flask_cors import CORS
+from zhongkao_api import zhongkao_bp
 import mysql.connector
 import json
 import os
@@ -110,6 +112,7 @@ def compress_image(image_data, max_size=1920, quality=85, target_format=None):
         return image_data
 
 app = Flask(__name__)
+app.register_blueprint(zhongkao_bp)
 CORS(app, supports_credentials=True)
 
 # 所有 API 响应禁止缓存（防浏览器/proxy缓存动态数据）

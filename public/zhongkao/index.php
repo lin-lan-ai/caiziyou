@@ -479,5 +479,59 @@ $username = $is_logged_in ? $_SESSION['username'] : '';
     // 每天更新倒计时
     setInterval(updateCountdown, 1000 * 60 * 60 * 24);
   </script>
+<script src="/zhongkao/api_client.js"></script>
+<script>
+// 加载统计数据
+async function loadStats() {
+  try {
+    const data = await ZhongkaoAPI.getStats();
+    if (data.today) {
+      document.getElementById("studyTime").textContent = data.today.study_minutes || 0;
+      document.getElementById("questions").textContent = data.today.questions_done || 0;
+      const accuracy = data.today.questions_done > 0 ? Math.round(data.today.questions_correct / data.today.questions_done * 100) : 0;
+      document.getElementById("accuracy").textContent = accuracy + "%";
+    }
+    document.getElementById("streak").textContent = data.streak || 0;
+  } catch(e) { console.error("加载统计失败:", e); }
+}
+
+// 加载科目进度
+async function loadProgress() {
+  try {
+    const data = await ZhongkaoAPI.getProgress();
+    const container = document.querySelector(".subjects-section");
+    if (!container || !data.progress) return;
+    
+    const subjectNames = {math:"数学",chinese:"语文",english:"英语",physics:"物理",chemistry:"化学",history:"历史",politics:"政治"};
+    const subjectIcons = {math:"📐",chinese:"📝",english:"📚",physics:"🔬",chemistry:"🧪",history:"🏛️",politics:"🌍"};
+    const subjectColors = {math:"#2563eb",chinese:"#16a34a",english:"#d97706",physics:"#dc2626",chemistry:"#9333ea",history:"#0891b2",politics:"#db2777"};
+    
+    let html = "<div class=\"stats-title\"><i class=\"fas fa-tasks\"></i> 科目复习进度</div>";
+    data.progress.forEach(p => {
+      const name = subjectNames[p.subject] || p.subject;
+      const icon = subjectIcons[p.subject] || "📖";
+      const color = subjectColors[p.subject] || "#666";
+      html += `
+        <div class="subject-item">
+          <div class="subject-icon" style="background: ${color}20; color: ${color}">${icon}</div>
+          <div class="subject-info">
+            <div class="subject-name">${name}</div>
+            <div class="subject-progress">
+              <div class="subject-progress-bar" style="width: ${p.percent}%; background: ${color};"></div>
+            </div>
+          </div>
+          <div class="subject-percent">${p.percent}%</div>
+        </div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) { console.error("加载进度失败:", e); }
+}
+
+// 页面加载时执行
+document.addEventListener("DOMContentLoaded", () => {
+  loadStats();
+  loadProgress();
+});
+</script>
 </body>
 </html>

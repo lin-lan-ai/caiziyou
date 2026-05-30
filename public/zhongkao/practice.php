@@ -182,6 +182,14 @@
         // TODO: 根据筛选条件过滤试卷
       });
     });
+// 从 API 加载试卷列表
+async function loadExams() {
+  try {
+    const data = await ZhongkaoAPI.getExams();
+    // TODO: 渲染试卷列表
+  } catch(e) { console.error(e); }
+}
+document.addEventListener("DOMContentLoaded", loadExams);
   </script>
 </body>
 </html>

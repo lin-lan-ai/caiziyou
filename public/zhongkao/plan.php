@@ -299,6 +299,16 @@ $is_logged_in = isset($_SESSION['user_id']);
   padding-top: 20px;
   padding-bottom: 40px;
 }
+
+/* 修复页面标题 */
+.page-title {
+  position: sticky;
+  top: 56px;
+  z-index: 999;
+  background: var(--bg);
+  padding: 16px 0;
+  margin-bottom: 20px;
+}
 </style>
 </head>
 <body>

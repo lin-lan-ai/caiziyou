@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude AI - 菜籽游</title>
+<style>
+:root {
+  --bg: #f5f5f7;
+  --card: #fff;
+  --text: #1d1d1f;
+  --text-secondary: #86868b;
+  --accent: #0071e3;
+  --accent-hover: #0077ED;
+  --border: #d2d2d7;
+  --user-bg: #0071e3;
+  --user-text: #fff;
+  --ai-bg: #f5f5f7;
+  --ai-text: #1d1d1f;
+  --radius: 18px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --code-bg: #1d1d1f;
+  --code-text: #f5f5f7;
+  --inline-code-bg: rgba(0,0,0,0.06);
+  --blockquote-border: #d2d2d7;
+  --table-border: #e5e5ea;
+  --link-color: #0071e3;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Topbar */
+.topbar {
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.topbar-left a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.topbar-left a:hover { text-decoration: underline; }
+.topbar-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-title i { color: var(--accent); }
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-new {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 980px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-new:hover { background: var(--accent-hover); }
+
+/* Chat container */
+.chat-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  scroll-behavior: smooth;
+}
+.chat-container::-webkit-scrollbar { width: 6px; }
+.chat-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Welcome */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.welcome-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--accent), #5856d6);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.welcome-icon i { font-size: 28px; color: #fff; }
+.welcome h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.welcome p { font-size: 15px; max-width: 400px; line-height: 1.5; }
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  justify-content: center;
+}
+.quick-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 980px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.quick-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Messages */
+.message {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.message.user { flex-direction: row-reverse; }
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.message.user .message-avatar { background: var(--user-bg); color: #fff; }
+.message.ai .message-avatar { background: linear-gradient(135deg, var(--accent), #5856d6); color: #fff; }
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 75%;
+  word-break: break-word;
+}
+.message.user .message-bubble {
+  background: var(--user-bg);
+  color: var(--user-text);
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+}
+.message.ai .message-bubble {
+  background: var(--ai-bg);
+  color: var(--ai-text);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+/* Copy message button */
+.message.ai .message-bubble .copy-msg-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.05);
+  border: none;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+  z-index: 10;
+}
+.message.ai:hover .message-bubble .copy-msg-btn {
+  opacity: 1;
+}
+.message.ai .message-bubble .copy-msg-btn:hover {
+  background: rgba(0,0,0,0.1);
+  color: var(--text);
+}
+
+/* Markdown rendering */
+.message.ai .message-bubble h1,
+.message.ai .message-bubble h2,
+.message.ai .message-bubble h3 {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.message.ai .message-bubble h1 { font-size: 20px; }
+.message.ai .message-bubble h2 { font-size: 18px; }
+.message.ai .message-bubble h3 { font-size: 16px; }
+.message.ai .message-bubble h1:first-child,
+.message.ai .message-bubble h2:first-child,
+.message.ai .message-bubble h3:first-child {
+  margin-top: 0;
+}
+
+.message.ai .message-bubble p {
+  margin: 0 0 10px 0;
+}
+.message.ai .message-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.message.ai .message-bubble ul,
+.message.ai .message-bubble ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+.message.ai .message-bubble li {
+  margin: 4px 0;
+}
+
+.message.ai .message-bubble blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 8px 16px;
+  margin: 10px 0;
+  background: rgba(0,113,227,0.05);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+}
+
+.message.ai .message-bubble hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.message.ai .message-bubble a {
+  color: var(--link-color);
+  text-decoration: none;
+}
+.message.ai .message-bubble a:hover {
+  text-decoration: underline;
+}
+
+.message.ai .message-bubble strong {
+  font-weight: 600;
+}
+
+.message.ai .message-bubble em {
+  font-style: italic;
+}
+
+.message.ai .message-bubble del {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+/* Code blocks */
+.message.ai .message-bubble pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 14px 16px;
+  border-radius: 10px;
+  overflow-x: auto;
+  margin: 10px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  position: relative;
+}
+.message.ai .message-bubble pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.message.ai .message-bubble pre .code-lang {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+}
+.message.ai .message-bubble pre .copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 60px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: rgba(255,255,255,0.5);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.message.ai .message-bubble pre:hover .copy-btn {
+  opacity: 1;
+}
+.message.ai .message-bubble pre .copy-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.8);
+}
+
+/* Inline code */
+.message.ai .message-bubble code {
+  background: var(--inline-code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* Tables */
+.message.ai .message-bubble table {
+  border-collapse: collapse;
+  margin: 10px 0;
+  width: 100%;
+  font-size: 14px;
+}
+.message.ai .message-bubble th,
+.message.ai .message-bubble td {
+  border: 1px solid var(--table-border);
+  padding: 8px 12px;
+  text-align: left;
+}
+.message.ai .message-bubble th {
+  background: rgba(0,0,0,0.03);
+  font-weight: 600;
+}
+.message.ai .message-bubble tr:nth-child(even) {
+  background: rgba(0,0,0,0.02);
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out;
+}
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+@keyframes bounce {
+  0%,80%,100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* Input area */
+.input-area {
+  padding: 16px 20px;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--border);
+}
+.input-wrapper {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.input-box {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  max-height: 120px;
+  min-height: 44px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+.input-box:focus { border-color: var(--accent); }
+.btn-send {
+  width: 44px;
+  height: 44px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-send:hover { background: var(--accent-hover); transform: scale(1.05); }
+.btn-send:disabled { background: var(--border); cursor: not-allowed; transform: none; }
+.input-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .topbar { padding: 0 12px; }
+  .chat-container { padding: 12px; }
+  .input-area { padding: 12px; }
+  .message-bubble { max-width: 88%; }
+  .quick-actions { gap: 6px; }
+  .quick-btn { font-size: 12px; padding: 6px 12px; }
+  .message.ai .message-bubble pre { font-size: 12px; }
+  .message.ai .message-bubble table { font-size: 12px; }
+  .message.ai .message-bubble th,
+  .message.ai .message-bubble td { padding: 6px 8px; }
+}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="/"><i class="fas fa-arrow-left"></i> 菜籽游</a>
+    <span class="topbar-title"><i class="fas fa-robot"></i> Claude AI</span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn-new" onclick="newChat()"><i class="fas fa-plus"></i> 新对话</button>
+  </div>
+</div>
+
+<div class="chat-container" id="chatContainer">
+  <div class="welcome" id="welcome">
+    <div class="welcome-icon"><i class="fas fa-robot"></i></div>
+    <h2>你好，我是 Claude</h2>
+    <p>菜籽游 AI 助手，可以帮你回答问题、写代码、分析问题。试试下面的快捷提问：</p>
+    <div class="quick-actions">
+      <button class="quick-btn" onclick="askQuick('菜籽游是什么平台？')">🌟 菜籽游介绍</button>
+      <button class="quick-btn" onclick="askQuick('帮我写一段 Python 代码')">💻 写代码</button>
+      <button class="quick-btn" onclick="askQuick('解释一下量子计算')">🔬 科普知识</button>
+      <button class="quick-btn" onclick="askQuick('帮我翻译这段话成英文')">🌐 翻译</button>
+    </div>
+  </div>
+</div>
+
+<div class="input-area">
+  <div class="input-wrapper">
+    <textarea class="input-box" id="inputBox" placeholder="输入你的问题..." rows="1"
+              onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="btn-send" id="btnSend" onclick="sendMessage()">
+      <i class="fas fa-arrow-up"></i>
+    </button>
+  </div>
+  <div class="input-hint">Claude AI 可能会犯错，请核实重要信息</div>
+</div>
+
+<script>
+const API_BASE = '/claude/api';
+const chatContainer = document.getElementById('chatContainer');
+const inputBox = document.getElementById('inputBox');
+const btnSend = document.getElementById('btnSend');
+const welcome = document.getElementById('welcome');
+
+let messages = [];
+let isStreaming = false;
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function askQuick(text) {
+  inputBox.value = text;
+  sendMessage();
+}
+
+function newChat() {
+  messages = [];
+  chatContainer.innerHTML = '';
+  chatContainer.appendChild(welcome);
+  welcome.style.display = 'flex';
+  inputBox.value = '';
+}
+
+function addMessage(role, content) {
+  welcome.style.display = 'none';
+
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'message-avatar';
+  avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'message-bubble';
+  if (role === 'user') {
+    bubble.textContent = content;
+  } else {
+    bubble.innerHTML = formatContent(content);
+    // Add copy message button
+    const copyMsgBtn = document.createElement('button');
+    copyMsgBtn.className = 'copy-msg-btn';
+    copyMsgBtn.textContent = '复制';
+    copyMsgBtn.onclick = function() { copyMessage(this, content); };
+    bubble.appendChild(copyMsgBtn);
+  }
+
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  chatContainer.appendChild(div);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+  return bubble;
+}
+
+function addTypingIndicator() {
+  welcome.style.display = 'none';
+
+  const div = document.createElement('div');
+  div.className = 'message ai';
+  div.id = 'typingIndicator';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'message-avatar';
+  avatar.innerHTML = '<i class="fas fa-robot"></i>';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'message-bubble';
+  bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  chatContainer.appendChild(div);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+// ============================================================
+// Markdown 渲染器
+// ============================================================
+function formatContent(text) {
+  if (!text) return '';
+
+  // Preserve math formulas before escaping
+  const mathBlocks = [];
+  text = text.replace(/\$\$([\s\S]*?)\$\$/g, function(match) {
+    mathBlocks.push(match);
+    return '%%MATH_BLOCK_' + (mathBlocks.length - 1) + '%%';
+  });
+  text = text.replace(/\$([^\$\n]+?)\$/g, function(match) {
+    mathBlocks.push(match);
+    return '%%MATH_BLOCK_' + (mathBlocks.length - 1) + '%%';
+  });
+
+  // Escape HTML
+  text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Code blocks ```lang\n...\n```
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+    const langLabel = lang ? `<span class="code-lang">${lang}</span>` : '';
+    return `<pre>${langLabel}<button class="copy-btn" onclick="copyCode(this)">复制</button><code>${code.trim()}</code></pre>`;
+  });
+
+  // Inline code `...`
+  text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  // Tables
+  text = text.replace(/((?:\|[^\n]+\|\n)+)/g, function(tableBlock) {
+    const rows = tableBlock.trim().split('\n');
+    if (rows.length < 2) return tableBlock;
+
+    let html = '<table>';
+    rows.forEach(function(row, i) {
+      // Skip separator row (|---|---|)
+      if (/^\|[\s\-:|]+\|$/.test(row.trim())) return;
+
+      const cells = row.split('|').filter(function(c) { return c.trim() !== ''; });
+      if (cells.length === 0) return;
+
+      const tag = i === 0 ? 'th' : 'td';
+      html += '<tr>';
+      cells.forEach(function(cell) {
+        html += `<${tag}>${cell.trim()}</${tag}>`;
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    return html;
+  });
+
+  // Headers ### / ## / #
+  text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // Horizontal rule
+  text = text.replace(/^---+$/gm, '<hr>');
+
+  // Blockquote > ...
+  text = text.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // Bold **...**
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  // Italic *...*
+  text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+  // Strikethrough ~~...~~
+  text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+  // Links [text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // Unordered lists - / *
+  text = text.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+  text = text.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+
+  // Ordered lists 1. 2. 3.
+  text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+  // Paragraphs: double newline
+  text = text.replace(/\n\n+/g, '</p><p>');
+
+  // Single newline to <br> (but not inside pre/code)
+  text = text.replace(/\n/g, '<br>');
+
+  // Wrap in paragraph if not already
+  if (!text.startsWith('<')) {
+    text = '<p>' + text + '</p>';
+  }
+
+  // Clean up empty paragraphs
+  text = text.replace(/<p><\/p>/g, '');
+  text = text.replace(/<p>(<h[123]>)/g, '$1');
+  text = text.replace(/(<\/h[123]>)<\/p>/g, '$1');
+  text = text.replace(/<p>(<pre>)/g, '$1');
+  text = text.replace(/(<\/pre>)<\/p>/g, '$1');
+  text = text.replace(/<p>(<table>)/g, '$1');
+  text = text.replace(/(<\/table>)<\/p>/g, '$1');
+  text = text.replace(/<p>(<ul>)/g, '$1');
+  text = text.replace(/(<\/ul>)<\/p>/g, '$1');
+  text = text.replace(/<p>(<hr>)/g, '$1');
+  text = text.replace(/(<hr>)<\/p>/g, '$1');
+  text = text.replace(/<p>(<blockquote>)/g, '$1');
+  text = text.replace(/(<\/blockquote>)<\/p>/g, '$1');
+
+  // Restore math formulas
+  mathBlocks.forEach(function(block, i) {
+    text = text.replace('%%MATH_BLOCK_' + i + '%%', block);
+  });
+
+  return text;
+}
+
+// Copy code function
+function copyCode(btn) {
+  const pre = btn.parentElement;
+  const code = pre.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    btn.textContent = '✓ 已复制';
+    btn.style.color = '#34c759';
+    setTimeout(function() {
+      btn.textContent = '复制';
+      btn.style.color = '';
+    }, 2000);
+  }).catch(function() {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = code;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    btn.textContent = '✓ 已复制';
+    btn.style.color = '#34c759';
+    setTimeout(function() {
+      btn.textContent = '复制';
+      btn.style.color = '';
+    }, 2000);
+  });
+}
+
+// Copy entire message
+function copyMessage(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = '✓ 已复制';
+    btn.style.color = '#34c759';
+    setTimeout(function() {
+      btn.textContent = '复制';
+      btn.style.color = '';
+    }, 2000);
+  }).catch(function() {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    btn.textContent = '✓ 已复制';
+    btn.style.color = '#34c759';
+    setTimeout(function() {
+      btn.textContent = '复制';
+      btn.style.color = '';
+    }, 2000);
+  });
+}
+
+async function sendMessage() {
+  const text = inputBox.value.trim();
+  if (!text || isStreaming) return;
+
+  isStreaming = true;
+  btnSend.disabled = true;
+  inputBox.value = '';
+  inputBox.style.height = 'auto';
+
+  // Add user message
+  addMessage('user', text);
+  messages.push({ role: 'user', content: text });
+
+  // Show typing
+  addTypingIndicator();
+
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages })
+    });
+
+    removeTypingIndicator();
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let aiBubble = addMessage('ai', '');
+    let aiText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'text') {
+              aiText += data.content;
+              aiBubble.innerHTML = formatContent(aiText);
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+              // Render math during streaming (debounced)
+              clearTimeout(aiBubble._mathTimer);
+              aiBubble._mathTimer = setTimeout(function() { renderMath(aiBubble); }, 300);
+            } else if (data.type === 'error') {
+              aiBubble.innerHTML = `<span style="color:#ff3b30">错误: ${data.content}</span>`;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    messages.push({ role: 'assistant', content: aiText });
+
+    // Render math formulas in the response
+    renderMath(aiBubble);
+
+  } catch (err) {
+    removeTypingIndicator();
+    addMessage('ai', `抱歉，出现了错误: ${err.message}`);
+  }
+
+  isStreaming = false;
+  btnSend.disabled = false;
+  inputBox.focus();
+}
+
+// ============================================================
+// 数学公式渲染 (KaTeX)
+// ============================================================
+function renderMath(element) {
+  if (typeof renderMathInElement === 'function') {
+    renderMathInElement(element, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '\\(', right: '\\)', display: false },
+      ],
+      throwOnError: false,
+      trust: true,
+    });
+  }
+}
+
+// Wait for KaTeX to load, then render
+document.addEventListener('DOMContentLoaded', function() {
+  // Initial render
+  setTimeout(function() { renderMath(document.body); }, 500);
+});
+
+// Focus input on load
+inputBox.focus();
+</script>
+</body>
+</html>

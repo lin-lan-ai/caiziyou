@@ -221,6 +221,7 @@ textarea{resize:vertical;min-height:60px}
 .profile-btn:hover{opacity:.8}
 .profile-btn-primary{background:#007aff;color:#fff}
 </style>
+<style>
 /* Notification Bell */
 .topbar-notif {
   position: relative;
@@ -544,6 +545,7 @@ textarea{resize:vertical;min-height:60px}
           <div class="dropdown-item" data-tab="chat"><i class="fas fa-comment-dots"></i> 消息 <span class="tab-badge" id="mobileChatBadge" style="display:none">0</span></div>
           <div class="dropdown-item admin-only-mobile" data-tab="admin"><i class="fas fa-shield-alt"></i> 管理</div>
           <div class="dropdown-item" onclick="window.location.href='/files.php'"><i class="fas fa-cloud-download-alt"></i> 文件</div>
+          <div class="dropdown-item" data-tab="claude"><i class="fas fa-robot"></i> AI</div>
 
         </div>
       </div>
@@ -555,6 +557,7 @@ textarea{resize:vertical;min-height:60px}
       <div class="topbar-item" data-tab="chat"><i class="fas fa-comment-dots"></i><span>消息<span class="tab-badge" id="chatBadge" style="display:none">0</span></span></div>
       <div class="topbar-item admin-only" data-tab="admin"><i class="fas fa-shield-alt"></i><span>管理</span></div>
       <div class="topbar-item" onclick="window.location.href='/files.php'"><i class="fas fa-cloud-download-alt"></i><span>文件</span></div>
+      <div class="topbar-item" data-tab="claude"><i class="fas fa-robot"></i><span>AI</span></div>
 
       <div class="topbar-search" id="topbarSearch">
         <i class="fas fa-search"></i>
@@ -676,6 +679,6 @@ textarea{resize:vertical;min-height:60px}
   </div>
 </div>
 
-<script src="/assets/js/app.js?v=20260510v70"></script>
+<script src="/assets/js/app.js?v=20260529v1"></script>
 </body>
 </html>

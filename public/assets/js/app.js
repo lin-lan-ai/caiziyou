@@ -18,6 +18,7 @@ function toast(m){
 
 /* ===== 面板切换 ===== */
 function showPanel(name){
+  if(name==='claude'){window.location.href='/claude/';return;}
   qsa('.float-panel').forEach(function(p){p.classList.remove('active')});
   var def=byId('panelDefault');if(def)def.style.display='none';
   var p=byId('panel-'+name);if(p)p.classList.add('active');

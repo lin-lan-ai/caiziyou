@@ -351,19 +351,19 @@ $username = $is_logged_in ? $_SESSION['username'] : '';
       </div>
       <div class="stats-grid">
         <div class="stat-item">
-          <div class="stat-value" id="studyTime">0</div>
+          <div class="stat-value" id="studyTime">--</div>
           <div class="stat-label">学习时长(分钟)</div>
         </div>
         <div class="stat-item">
-          <div class="stat-value" id="questions">0</div>
+          <div class="stat-value" id="questions">--</div>
           <div class="stat-label">做题数量</div>
         </div>
         <div class="stat-item">
-          <div class="stat-value" id="accuracy">0%</div>
+          <div class="stat-value" id="accuracy">--%</div>
           <div class="stat-label">正确率</div>
         </div>
         <div class="stat-item">
-          <div class="stat-value" id="streak">0</div>
+          <div class="stat-value" id="streak">--</div>
           <div class="stat-label">连续学习(天)</div>
         </div>
       </div>
@@ -535,3 +535,53 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+
+<script src="api_client.js"></script>
+<script>
+async function loadData() {
+  try {
+    // 加载统计
+    const stats = await ZhongkaoAPI.getStats();
+    if (stats.today) {
+      document.getElementById('studyTime').textContent = stats.today.study_minutes || 0;
+      document.getElementById('questions').textContent = stats.today.questions_done || 0;
+      const acc = stats.today.questions_done > 0 
+        ? Math.round(stats.today.questions_correct / stats.today.questions_done * 100) 
+        : 0;
+      document.getElementById('accuracy').textContent = acc + '%';
+    }
+    document.getElementById('streak').textContent = stats.streak || 0;
+    
+    // 加载进度
+    const prog = await ZhongkaoAPI.getProgress();
+    if (prog.progress && prog.progress.length > 0) {
+      const names = {math:'数学',chinese:'语文',english:'英语',physics:'物理',chemistry:'化学',history:'历史',politics:'政治'};
+      const icons = {math:'📐',chinese:'📝',english:'📚',physics:'🔬',chemistry:'🧪',history:'🏛️',politics:'🌍'};
+      const colors = {math:'#2563eb',chinese:'#16a34a',english:'#d97706',physics:'#dc2626',chemistry:'#9333ea',history:'#0891b2',politics:'#db2777'};
+      
+      let html = '<div class="stats-title"><i class="fas fa-tasks"></i> 科目复习进度</div>';
+      prog.progress.forEach(p => {
+        const n = names[p.subject] || p.subject;
+        const i = icons[p.subject] || '📖';
+        const c = colors[p.subject] || '#666';
+        html += `
+          <div class="subject-item">
+            <div class="subject-icon" style="background:${c}20;color:${c}">${i}</div>
+            <div class="subject-info">
+              <div class="subject-name">${n}</div>
+              <div class="subject-progress">
+                <div class="subject-progress-bar" style="width:${p.percent}%;background:${c}"></div>
+              </div>
+            </div>
+            <div class="subject-percent">${p.percent}%</div>
+          </div>`;
+      });
+      document.querySelector('.subjects-section').innerHTML = html;
+    }
+  } catch(e) {
+    console.error('加载数据失败:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>

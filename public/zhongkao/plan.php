@@ -424,103 +424,99 @@ $is_logged_in = isset($_SESSION['user_id']);
     </div>
   </div>
   
-  <script>
-    // 切换完成状态
-    function toggleComplete(el) {
-      el.classList.toggle('checked');
-      const title = el.nextElementSibling.querySelector('.plan-title');
-      title.classList.toggle('completed');
-      
-      if (el.classList.contains('checked')) {
-        el.innerHTML = '<i class="fas fa-check" style="font-size: 12px;"></i>';
-      } else {
-        el.innerHTML = '';
-      }
-      
-      // 保存到后端
-      savePlans();
-    }
-    
-    // 打开模态框
-    function openModal() {
-      document.getElementById('addModal').classList.add('open');
-    }
-    
-    // 关闭模态框
-    function closeModal() {
-      document.getElementById('addModal').classList.remove('open');
-    }
-    
-    // 添加计划
-    function addPlan() {
-      const subject = document.getElementById('subject').value;
-      const content = document.getElementById('content').value;
-      const startTime = document.getElementById('startTime').value;
-      const endTime = document.getElementById('endTime').value;
-      
-      if (!content) {
-        alert('请输入计划内容');
-        return;
-      }
-      
-      const subjectNames = {
-        math: '数学', chinese: '语文', english: '英语',
-        physics: '物理', chemistry: '化学', history: '历史', politics: '政治'
-      };
-      
-      const planHtml = `
-        <div class="plan-item">
-          <div class="plan-checkbox" onclick="toggleComplete(this)"></div>
-          <div class="plan-content">
-            <span class="plan-subject ${subject}">${subjectNames[subject]}</span>
-            <div class="plan-title">${content}</div>
-            <div class="plan-time"><i class="fas fa-clock"></i> ${startTime} - ${endTime}</div>
-          </div>
-          <div class="plan-actions">
-            <button title="编辑"><i class="fas fa-edit"></i></button>
-            <button title="删除"><i class="fas fa-trash"></i></button>
-          </div>
-        </div>
-      `;
-      
-      document.getElementById('planList').insertAdjacentHTML('beforeend', planHtml);
-      closeModal();
-      savePlans();
-      
-      // 清空表单
-      document.getElementById('content').value = '';
-    }
-    
-    // 保存计划到后端
-    function savePlans() {
-      const plans = [];
-      document.querySelectorAll('.plan-item').forEach(item => {
-        plans.push({
-          subject: item.querySelector('.plan-subject').textContent,
-          title: item.querySelector('.plan-title').textContent,
-          time: item.querySelector('.plan-time').textContent.replace(/[^\d:-]/g, ''),
-          completed: item.querySelector('.plan-checkbox').classList.contains('checked')
-        });
-      });
-      
-      await ZhongkaoAPI.addPlan({subject, title: content, start_time: startTime, end_time: endTime});
-      console.log('保存计划:', plans);
-    }
-    
-    // 日期导航
-    let currentDate = new Date();
-    
-    function changeDate(delta) {
-      currentDate.setDate(currentDate.getDate() + delta);
-      document.getElementById('currentDate').textContent = 
-        currentDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-      
-      // TODO: 从后端加载该日期的计划
-    }
-    
-    // 初始化日期
-    document.getElementById('currentDate').textContent = 
-      currentDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-  </script>
 </body>
 </html>
+<script src="api_client.js"></script>
+<script>
+let currentDate = new Date().toISOString().split('T')[0];
+
+async function loadPlans() {
+  try {
+    const data = await ZhongkaoAPI.getPlans(currentDate);
+    const container = document.getElementById('planList');
+    
+    if (!data.plans || data.plans.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:#999">暂无学习计划</div>';
+      return;
+    }
+    
+    const subjectNames = {math:'数学',chinese:'语文',english:'英语',physics:'物理',chemistry:'化学',history:'历史',politics:'政治'};
+    const subjectClasses = {math:'math',chinese:'chinese',english:'english',physics:'physics',chemistry:'chemistry'};
+    
+    let html = '';
+    data.plans.forEach(p => {
+      const checked = p.completed ? 'checked' : '';
+      const completedClass = p.completed ? 'completed' : '';
+      const checkIcon = p.completed ? '<i class="fas fa-check" style="font-size:12px"></i>' : '';
+      
+      html += `
+        <div class="plan-item" data-id="${p.id}">
+          <div class="plan-checkbox ${checked}" onclick="togglePlan(${p.id}, this)">${checkIcon}</div>
+          <div class="plan-content">
+            <span class="plan-subject ${subjectClasses[p.subject] || ''}">${subjectNames[p.subject] || p.subject}</span>
+            <div class="plan-title ${completedClass}">${p.title}</div>
+            <div class="plan-time"><i class="fas fa-clock"></i> ${p.start_time} - ${p.end_time}</div>
+          </div>
+          <div class="plan-actions">
+            <button onclick="deletePlan(${p.id})"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) {
+    console.error('加载计划失败:', e);
+  }
+}
+
+async function togglePlan(id, el) {
+  await ZhongkaoAPI.togglePlan(id);
+  el.classList.toggle('checked');
+  const title = el.nextElementSibling.querySelector('.plan-title');
+  title.classList.toggle('completed');
+  el.innerHTML = el.classList.contains('checked') ? '<i class="fas fa-check" style="font-size:12px"></i>' : '';
+}
+
+async function deletePlan(id) {
+  if (confirm('确定删除这个计划吗？')) {
+    await ZhongkaoAPI.deletePlan(id);
+    loadPlans();
+  }
+}
+
+async function addPlan() {
+  const subject = document.getElementById('subject').value;
+  const content = document.getElementById('content').value;
+  const startTime = document.getElementById('startTime').value;
+  const endTime = document.getElementById('endTime').value;
+  
+  if (!content) { alert('请输入计划内容'); return; }
+  
+  await ZhongkaoAPI.addPlan({
+    subject,
+    title: content,
+    start_time: startTime,
+    end_time: endTime,
+    plan_date: currentDate
+  });
+  
+  closeModal();
+  loadPlans();
+  document.getElementById('content').value = '';
+}
+
+function openModal() { document.getElementById('addModal').classList.add('open'); }
+function closeModal() { document.getElementById('addModal').classList.remove('open'); }
+
+function changeDate(delta) {
+  const d = new Date(currentDate);
+  d.setDate(d.getDate() + delta);
+  currentDate = d.toISOString().split('T')[0];
+  document.getElementById('currentDate').textContent = d.toLocaleDateString('zh-CN', {year:'numeric',month:'long',day:'numeric'});
+  loadPlans();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('currentDate').textContent = new Date().toLocaleDateString('zh-CN', {year:'numeric',month:'long',day:'numeric'});
+  loadPlans();
+});
+</script>

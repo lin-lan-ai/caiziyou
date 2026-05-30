@@ -212,21 +212,102 @@
     </div>
   </div>
   
-  <script>
-    function toggleMistake(el) {
-      const content = el.nextElementSibling;
-      const expand = el.querySelector('.mistake-expand');
-      content.classList.toggle('open');
-      expand.classList.toggle('open');
-    }
-    
-    // 筛选功能
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-      });
-    });
-  </script>
 </body>
 </html>
+<script src="api_client.js"></script>
+<script>
+let currentStatus = '';
+
+async function loadMistakes() {
+  try {
+    const data = await ZhongkaoAPI.getMistakes(currentStatus);
+    const container = document.querySelector('.mistake-list');
+    
+    if (!data.mistakes || data.mistakes.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:#999">暂无错题</div>';
+      return;
+    }
+    
+    const subjectNames = {math:'数学',physics:'物理',english:'英语',chinese:'语文'};
+    const subjectClasses = {math:'math',physics:'physics'};
+    const statusNames = {new:'待复习',reviewing:'复习中',mastered:'已掌握'};
+    const statusClasses = {new:'new',reviewing:'reviewing',mastered:'mastered'};
+    
+    let html = '';
+    data.mistakes.forEach(m => {
+      const options = m.options ? JSON.parse(m.options) : [];
+      const date = new Date(m.created_at).toLocaleDateString('zh-CN');
+      
+      html += `
+        <div class="mistake-card">
+          <div class="mistake-header" onclick="toggleMistake(this)">
+            <div class="mistake-info">
+              <span class="mistake-subject ${subjectClasses[m.subject] || ''}">${subjectNames[m.subject] || m.subject}</span>
+              <span>${m.question_text.substring(0, 30)}...</span>
+            </div>
+            <div class="mistake-status">
+              <span class="status-badge ${statusClasses[m.status]}">${statusNames[m.status]}</span>
+              <span class="mistake-date">${date}</span>
+              <i class="fas fa-chevron-down mistake-expand"></i>
+            </div>
+          </div>
+          <div class="mistake-content">
+            <div class="mistake-question"><strong>题目：</strong>${m.question_text}</div>
+            <div class="mistake-answer">
+              <div class="answer-label wrong"><i class="fas fa-times"></i> 我的答案</div>
+              <div>${m.user_answer}</div>
+            </div>
+            <div class="mistake-answer">
+              <div class="answer-label correct"><i class="fas fa-check"></i> 正确答案</div>
+              <div>${m.correct_answer}</div>
+            </div>
+            ${m.explanation ? `
+            <div class="mistake-analysis">
+              <div class="analysis-title"><i class="fas fa-lightbulb"></i> 解析</div>
+              <div>${m.explanation}</div>
+            </div>` : ''}
+            <div class="mistake-actions">
+              <button class="btn btn-outline" onclick="updateStatus(${m.id}, 'reviewing')"><i class="fas fa-redo"></i> 标记复习中</button>
+              <button class="btn btn-success" onclick="updateStatus(${m.id}, 'mastered')"><i class="fas fa-check"></i> 标记已掌握</button>
+            </div>
+          </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+    
+    // 更新统计
+    const total = data.mistakes.length;
+    const newCount = data.mistakes.filter(m => m.status === 'new').length;
+    const mastered = data.mistakes.filter(m => m.status === 'mastered').length;
+    document.querySelector('.stat-value.total').textContent = total;
+    document.querySelector('.stat-value.reviewed').textContent = newCount;
+    document.querySelector('.stat-value.mastered').textContent = mastered;
+  } catch(e) {
+    console.error('加载错题失败:', e);
+  }
+}
+
+function toggleMistake(el) {
+  const content = el.nextElementSibling;
+  const expand = el.querySelector('.mistake-expand');
+  content.classList.toggle('open');
+  expand.classList.toggle('open');
+}
+
+async function updateStatus(id, status) {
+  await ZhongkaoAPI.updateMistakeStatus(id, status);
+  loadMistakes();
+}
+
+// 筛选
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    currentStatus = this.dataset.status || '';
+    loadMistakes();
+  });
+});
+
+document.addEventListener('DOMContentLoaded', loadMistakes);
+</script>

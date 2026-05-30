@@ -45,7 +45,20 @@
     .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .filter-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border); background: var(--card); cursor: pointer; transition: .2s; }
     .filter-btn:hover, .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
-  </style>
+  
+/* 修复顶部导航 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+}
+.container {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+</style>
 </head>
 <body>
   <div class="topbar">

@@ -70,7 +70,20 @@
     .btn-success { background: var(--success); color: white; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
     .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
-  </style>
+  
+/* 修复顶部导航 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+}
+.container {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+</style>
 </head>
 <body>
   <div class="topbar">

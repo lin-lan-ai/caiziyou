@@ -45,7 +45,20 @@
     .subject-bar { flex: 1; height: 12px; background: var(--bg); border-radius: 6px; overflow: hidden; }
     .subject-fill { height: 100%; border-radius: 6px; transition: width .5s; }
     .subject-percent { width: 60px; text-align: right; font-weight: 600; }
-  </style>
+  
+/* 修复顶部导航 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+}
+.container {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+</style>
 </head>
 <body>
   <div class="topbar">

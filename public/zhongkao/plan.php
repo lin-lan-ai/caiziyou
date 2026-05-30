@@ -286,7 +286,20 @@ $is_logged_in = isset($_SESSION['user_id']);
       .plan-item { flex-direction: column; align-items: flex-start; }
       .plan-actions { width: 100%; justify-content: flex-end; }
     }
-  </style>
+  
+/* 修复顶部导航 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+}
+.container {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+</style>
 </head>
 <body>
   <div class="topbar">

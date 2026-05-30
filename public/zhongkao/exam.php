@@ -53,7 +53,20 @@ $exam_id = intval($_GET['id'] ?? 0);
     .modal-content { background: var(--card); border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; }
     .modal-score { font-size: 48px; font-weight: 800; color: var(--primary); margin: 16px 0; }
     .loading { text-align: center; padding: 40px; color: var(--text-dim); }
-  </style>
+  
+/* 修复顶部导航 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: white;
+}
+.container {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+</style>
 </head>
 <body>
   <div class="topbar">
